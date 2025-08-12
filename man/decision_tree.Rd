@@ -2,10 +2,26 @@
 % Please edit documentation in R/helpers.R
 \name{decision_tree}
 \alias{decision_tree}
-\title{Show the current decision tree (text)}
+\title{Show the current decision tree for engine selection}
 \usage{
 decision_tree()
 }
+\value{
+\code{NULL} invisibly, after printing to the console.
+}
 \description{
-Show the current decision tree (text)
+Print the MVP decision rules for mapping strategies/diagnostics to
+engine choices. This is primarily for developers and advanced users
+to understand how \code{tidycomp} currently selects an engine when \code{strategy}
+is \code{"auto"}, \code{"pragmatic"}, \code{"parametric"}, or \code{"robust"}.
+}
+\details{
+Current rules (MVP):
+\itemize{
+\item \strong{strategy = \code{"parametric"}} → Student's \emph{t} (equal variances)
+\item \strong{strategy = \code{"auto"} / \code{"pragmatic"} / \code{"robust"}} → Welch's \emph{t}
+\item \strong{Severe non-normality} (Shapiro \emph{p} < .01) \strong{with very small n} (< 15) → suggest \code{"mann_whitney"} (manual override)
+}
+
+This function is informational only; it does not run any analysis.
 }

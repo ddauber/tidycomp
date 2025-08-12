@@ -1,5 +1,23 @@
-#' Engine registry (internal)
 #' @keywords internal
+#' @noRd
+#' @details
+#' **Developer note:** Engines are small, pure functions that accept a
+#' prepared `data` frame and `meta` (roles, diagnostics, design) and return
+#' a standardized, one‑row result. To add a new engine, implement
+#' `engine_*()` with the same contract and register it in `.tidycomp_engines()`.
+
+#' Engine registry (internal)
+#'
+#' Return the named registry of available analysis engines.
+#' Keys are user‑facing engine names; values are the corresponding
+#' engine functions.
+#'
+#' This is used by the dispatcher to resolve `strategy`/`engine`
+#' choices to a concrete test implementation.
+#'
+#' @return A named list mapping engine ids to functions.
+#' @keywords internal
+#' @noRd
 .tidycomp_engines <- function() {
   list(
     welch_t = engine_welch_t,
@@ -8,8 +26,27 @@
   )
 }
 
-#' Welch two-sample t-test engine
+#' Welch two-sample t-test engine (internal)
+#'
+#' Perform a two‑sample Welch *t*‑test for a numeric outcome with two groups
+#' (unequal variances). Expects a standardized two‑column frame containing
+#' the outcome and group specified in `meta$roles`.
+#'
+#' @param data A data frame containing at least the outcome and group columns.
+#' @param meta A list carrying analysis metadata (e.g., `roles`, `diagnostics`,
+#'   and any design notes) assembled upstream.
+#'
+#' @details
+#' Assumes: numeric outcome, two groups (factor with 2 levels).
+#' Computes the Welch test (i.e., unequal variances). Any preflight checks
+#' should be handled before calling the engine.
+#'
+#' @return A one‑row tibble (or list) with standardized fields such as:
+#'   `method`, `design`, `n`, `statistic`, `df`, `p.value`, `estimate`,
+#'   `conf.low`, `conf.high`, `metric`, and `notes`.
+#'
 #' @keywords internal
+#' @noRd
 engine_welch_t <- function(data, meta) {
   df <- .standardize_two_group_numeric(
     data,
@@ -33,8 +70,25 @@ engine_welch_t <- function(data, meta) {
   )
 }
 
-#' Student t-test (equal variances)
+#' Student (equal-variance) t-test engine (internal)
+#'
+#' Perform a two‑sample Student *t*‑test for a numeric outcome with two groups
+#' (assumes equal variances / pooled SD).
+#'
+#' @param data A data frame containing at least the outcome and group columns.
+#' @param meta A list with roles/diagnostics and other upstream metadata.
+#'
+#' @details
+#' Assumes: numeric outcome, two groups (factor with 2 levels).
+#' Uses the pooled‑variance *t* test; use the Welch engine when variances
+#' appear heterogeneous.
+#'
+#' @return A one‑row tibble (or list) with standardized result fields:
+#'   `method`, `design`, `n`, `statistic`, `df`, `p.value`, `estimate`,
+#'   `conf.low`, `conf.high`, `metric`, and `notes`.
+#'
 #' @keywords internal
+#' @noRd
 engine_student_t <- function(data, meta) {
   df <- .standardize_two_group_numeric(
     data,
@@ -58,8 +112,27 @@ engine_student_t <- function(data, meta) {
   )
 }
 
-#' Mann–Whitney (Wilcoxon rank-sum) engine
+#' Mann–Whitney (Wilcoxon rank-sum) engine (internal)
+#'
+#' Perform a two‑group, distribution‑free comparison using the
+#' Mann–Whitney / Wilcoxon rank‑sum test. Useful when normality/variance
+#' assumptions are doubtful or the outcome is ordinal.
+#'
+#' @param data A data frame containing at least the outcome and group columns.
+#' @param meta A list with roles/diagnostics and other upstream metadata.
+#'
+#' @details
+#' Assumes: numeric or ordinal outcome, two groups (factor with 2 levels).
+#' Reports a standardized result set; the primary `metric` reflects
+#' stochastic ordering (e.g., probability of superiority).
+#'
+#' @return A one‑row tibble (or list) with standardized result fields:
+#'   `method`, `design`, `n`, `statistic`, `df` (may be `NA`), `p.value`,
+#'   `estimate` (may be `NA` for MVP), `conf.low`/`conf.high` (may be `NA`),
+#'   `metric`, and `notes`.
+#'
 #' @keywords internal
+#' @noRd
 engine_mann_whitney <- function(data, meta) {
   df <- .standardize_two_group_numeric(
     data,

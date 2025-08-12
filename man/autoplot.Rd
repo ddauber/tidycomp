@@ -2,10 +2,28 @@
 % Please edit documentation in R/generics.R
 \name{autoplot}
 \alias{autoplot}
+\alias{autoplot.comp_spec}
+\alias{autoplot.comp_result}
 \title{Autoplot}
 \usage{
 autoplot(object, ...)
+
+\method{autoplot}{comp_spec}(object, type = c("estimation", "diagnostics"), ...)
+
+\method{autoplot}{comp_result}(object, type = c("estimation", "diagnostics"), data, roles, ...)
+}
+\arguments{
+\item{object}{An object to plot. Methods are provided for \code{comp_spec}
+and \code{comp_result}.}
+
+\item{...}{Passed to methods.}
+}
+\value{
+A \code{ggplot} object, or \code{NULL} (invisibly) when not applicable.
 }
 \description{
-Autoplot
+Generic for producing a default plot. For \code{comp_spec}, this delegates
+to its fitted result. For \code{comp_result}, type \code{"estimation"} draws a
+point estimate with confidence interval; \code{"diagnostics"} is reserved
+for future use.
 }

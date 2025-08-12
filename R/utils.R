@@ -1,9 +1,14 @@
 #' Internal utilities (validation and helpers)
 #' @keywords internal
 
-#' Validate columns exist
-#' @param data A data frame
-#' @param cols Character vector of required column names
+#' Validate that required columns exist
+#'
+#' Checks that all specified column names are present in a data frame;
+#' aborts with a helpful message if any are missing.
+#'
+#' @param data A data frame.
+#' @param cols Character vector of required column names.
+#' @keywords internal
 #' @noRd
 .validate_cols <- function(data, cols) {
   miss <- setdiff(cols, names(data))
@@ -15,7 +20,15 @@
   }
 }
 
-#' Capture column names from tidy-eval inputs
+#' Capture a role column from tidy-eval input
+#'
+#' Quosures and expressions are validated to ensure they are a single,
+#' existing column name in `data`.
+#'
+#' @param data A data frame.
+#' @param x A tidy-eval column reference.
+#' @return A character scalar with the resolved column name.
+#' @keywords internal
 #' @noRd
 .capture_role <- function(data, x) {
   q <- rlang::enquo(x)
@@ -32,9 +45,15 @@
   nm
 }
 
-#' Standardize two-group numeric data for engines
-#' @param data data frame
-#' @param outcome,group character column names (already validated)
+#' Standardize two-group numeric data
+#'
+#' Select and rename the outcome and group columns, validate type/levels,
+#' and coerce group to a factor with exactly two levels.
+#'
+#' @param data A data frame.
+#' @param outcome,group Character names of validated columns.
+#' @return A tibble with columns `outcome` (numeric) and `group` (factor).
+#' @keywords internal
 #' @noRd
 .standardize_two_group_numeric <- function(data, outcome, group) {
   df <- tibble::as_tibble(data[, c(outcome, group)])
@@ -51,7 +70,14 @@
   df
 }
 
-#' Simple outlier flag (IQR rule)
+#' Flag outliers using the IQR rule
+#'
+#' Compute lower/upper fences for finite values of `x` based on the IQR rule.
+#'
+#' @param x Numeric vector.
+#' @param k Multiplier for the IQR (default 3).
+#' @return A list with elements `lo` and `hi`.
+#' @keywords internal
 #' @noRd
 .flag_outliers_iqr <- function(x, k = 3) {
   x <- x[is.finite(x)]
@@ -62,8 +88,16 @@
   list(lo = lo, hi = hi)
 }
 
-#' Brown–Forsythe (median-based Levene) for 2 groups (minimal)
-#' Returns p-value; NA if not applicable.
+#' Brown–Forsythe test (2 groups, minimal)
+#'
+#' Median-based Levene test for equality of variance in two groups.
+#' Implemented via a classic two-sample t-test on absolute deviations
+#' from group medians. Returns a p-value.
+#'
+#' @param y Numeric outcome.
+#' @param g Grouping variable (coerced to factor).
+#' @return Numeric p-value, or `NA` if not applicable.
+#' @keywords internal
 #' @noRd
 .brown_forsythe_2g <- function(y, g) {
   g <- factor(g)

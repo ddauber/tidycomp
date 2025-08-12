@@ -2,10 +2,23 @@
 % Please edit documentation in R/generics.R
 \name{tidy}
 \alias{tidy}
-\title{Tidy output for \code{comp_result}}
+\alias{tidy.comp_result}
+\title{Tidy output for comparison results}
 \usage{
 tidy(x, ...)
+
+\method{tidy}{comp_result}(x, ...)
+}
+\arguments{
+\item{x}{An object to tidy. Currently, the method is defined for
+objects of class \code{comp_result}.}
+
+\item{...}{Passed to methods.}
+}
+\value{
+A tibble.
 }
 \description{
-Tidy output for \code{comp_result}
+Generic to return a tibble representation of a result. The implemented
+method for \code{comp_result} coerces the object to a tibble.
 }

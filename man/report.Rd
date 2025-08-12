@@ -2,10 +2,26 @@
 % Please edit documentation in R/generics.R
 \name{report}
 \alias{report}
+\alias{report.comp_spec}
+\alias{report.comp_result}
 \title{Report summary}
 \usage{
 report(x, ...)
+
+\method{report}{comp_spec}(x, ...)
+
+\method{report}{comp_result}(x, ...)
+}
+\arguments{
+\item{x}{An object to report. Methods are provided for \code{comp_spec}
+(delegates to its fitted result) and \code{comp_result}.}
+
+\item{...}{Passed to methods.}
+}
+\value{
+The input object, invisibly (after printing messages).
 }
 \description{
-Report summary
+Generic for printing a concise, human‑readable summary of results.
+Methods emit messages via \strong{cli}.
 }

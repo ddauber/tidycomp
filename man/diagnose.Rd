@@ -7,12 +7,45 @@
 diagnose(spec)
 }
 \arguments{
-\item{spec}{A \code{comp_spec} with roles/design/outcome_type set.}
+\item{spec}{A \code{comp_spec} with roles/design/outcome type already set.
+Must include at least an outcome variable and a group variable in
+\code{spec$roles}.}
 }
 \value{
-The updated \code{comp_spec} with a \code{diagnostics} list.
+The input \code{spec}, updated with a \code{diagnostics} list.
 }
 \description{
-Runs basic checks: group counts, variance heterogeneity (Brown–Forsythe proxy),
-Shapiro normality (per group, flagged only), and simple IQR outlier counts.
+Run lightweight checks on a \code{comp_spec}: group sizes, variance
+heterogeneity (Brown–Forsythe proxy), within‑group normality (Shapiro),
+and simple IQR‑based outlier counts. The function \strong{does not} alter
+the raw data; it attaches a \code{diagnostics} list to the spec.
+}
+\details{
+The following summaries are computed and stored in \code{spec$diagnostics}:
+\itemize{
+\item \code{group_sizes}: a tibble with counts per group.
+\item \code{var_bf_p}: Brown–Forsythe proxy p‑value for variance heterogeneity.
+\item \code{normality}: per‑group Shapiro–Wilk p‑values (flagged only; not enforced).
+\item \code{notes}: human‑readable notes highlighting potential issues
+(e.g., small groups, variance heterogeneity, non‑normality, outliers).
+}
+
+These diagnostics are intended as \strong{signals} to guide strategy/engine
+choices (e.g., robust/permutation) rather than hard pass/fail gates.
+}
+\examples{
+# setup
+spec <- comp_spec(mtcars)
+spec$roles <- list(outcome = "mpg", group = "cyl")
+spec$outcome_type <- "numeric"
+
+# run diagnostics (non-destructive; adds `diagnostics`)
+spec <- diagnose(spec)
+spec$diagnostics$group_sizes
+spec$diagnostics$notes
+
+# Example interpretation:
+# - Consider robust/permutation strategies if variance heterogeneity or
+#   non-normality is flagged.
+# - Very small groups may limit parametric assumptions.
 }

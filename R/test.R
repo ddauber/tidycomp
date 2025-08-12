@@ -1,12 +1,49 @@
 #' Run the comparison test (choose + fit engine)
 #'
-#' - If `engine` was set via `set_engine()`, that engine is run.
-#' - Otherwise, engine is chosen from `strategy` and `diagnostics`:
-#'   - "auto"/"pragmatic": prefer Welch t; if normality is severely flagged and very small n, suggest MW.
-#'   - "parametric": Student's t.
-#'   - "robust": Welch t for now (placeholder).
-#'   - "permutation": not implemented in MVP.
+#' Fit a `comp_spec` by selecting an engine (if not already set) and running
+#' the corresponding test. The chosen engine is based on `spec$strategy`
+#' and, when available, `spec$diagnostics`.
 #'
+#' @param spec A `comp_spec` created by [comp_spec()] with roles set via
+#'   `set_roles(outcome, group)`, `design = "independent"`, and
+#'   `outcome_type = "numeric"`. Optionally, run [diagnose()] beforehand.
+#'
+#' @details
+#' **Scope (MVP):**
+#' - Design: `design = "independent"` only.
+#' - Outcome: `outcome_type = "numeric"` only.
+#'
+#' **Engine selection (defaults if `spec$engine` is `NULL`):**
+#' - `strategy = "parametric"` → Student's *t* (`"student_t"`).
+#' - `strategy = "auto"` / `"pragmatic"` / `"robust"` / `"permutation"` → Welch *t* (`"welch_t"`) for now.
+#' - If diagnostics indicate **very small n** (< 15 in any group) **and severe non‑normality**
+#'   (Shapiro *p* < .01), a gentle warning suggests using `"mann_whitney"`.
+#'
+#' On success, results are stored in `spec$fitted` as a `comp_result`, and the engine used is reported.
+#'
+#' @return The input `spec`, updated with a fitted `comp_result` in `spec$fitted`.
+#'
+#' @seealso [set_roles()], [set_engine()], [diagnose()], [compare_engines()],
+#'   [decision_tree()], [comp_spec()]
+#'
+#' @examples
+#' # Minimal workflow
+#' spec <- comp_spec(mtcars)
+#' spec$roles <- list(outcome = "mpg", group = "am")
+#' spec$design <- "independent"
+#' spec$outcome_type <- "numeric"
+#'
+#' # (Optional) run diagnostics to inform engine nudges
+#' spec <- diagnose(spec)
+#'
+#' # Fit using strategy-based engine selection (Welch t by default)
+#' spec <- test(spec)
+#' spec$fitted
+#'
+#' # Force a specific engine, then fit
+#' # spec <- set_engine(spec, "student_t")
+#' # spec <- test(spec)
+#' # tidy(spec$fitted)
 #' @export
 test <- function(spec) {
   stopifnot(inherits(spec, "comp_spec"))

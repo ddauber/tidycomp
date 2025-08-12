@@ -2,22 +2,59 @@
 % Please edit documentation in R/effects.R
 \name{effects}
 \alias{effects}
-\title{Add effect sizes (Hedges' g) to results}
+\title{Add an effect size to a fitted comparison}
 \usage{
 effects(spec, conf_level = 0.95)
 }
 \arguments{
-\item{spec}{A \code{comp_spec} with \code{fitted}.}
+\item{spec}{A \code{comp_spec} created by \code{\link[=comp_spec]{comp_spec()}} and already fitted
+via \code{test()} (i.e., \code{spec$fitted} must exist). Roles must include a
+numeric outcome and a two‑level group.}
 
-\item{conf_level}{Confidence level for ES CI.}
+\item{conf_level}{Confidence level for the interval (numeric in (0, 1),
+default \code{0.95}).}
 }
 \value{
-Updated \code{comp_spec} with ES columns added to \code{fitted}.
+The input \code{spec}, updated in place with effect‑size fields in
+\code{spec$fitted}: \code{es_value}, \code{es_conf_low}, \code{es_conf_high}, \code{es_metric}.
 }
 \description{
-Add effect sizes (Hedges' g) to results
+Compute Hedges' \emph{g} (with a confidence interval) for a two‑group,
+numeric outcome and store it on the \code{comp_spec}. This is a
+post‑fit step that reads from \code{spec$fitted} and writes the following:
+\code{es_value}, \code{es_conf_low}, \code{es_conf_high}, and \code{es_metric} (set to
+\code{"Hedges_g"}).
+}
+\details{
+\itemize{
+\item Supported design: two‑group comparison with a \strong{numeric} outcome.
+\item Backend: \href{https://easystats.github.io/effectsize/}{\code{effectsize::hedges_g()}}.
+\item If the \strong{effectsize} package is not installed, a warning is issued
+and the input \code{spec} is returned unchanged.
+}
+
+The function selects \code{spec$data_prepared} when available, otherwise
+falls back to \code{spec$data_raw}. It standardizes inputs internally and
+then calls \code{effectsize::hedges_g(outcome ~ group, ...)}.
 }
 \examples{
-# After test():
-# spec <- effects(spec)
+# Minimal workflow (illustrative):
+spec <- comp_spec(mtcars)
+spec$roles <- list(outcome = "mpg", group = "am")  # am has two levels
+spec$outcome_type <- "numeric"
+
+# Pretend we've run the inferential test step that creates `spec$fitted`
+# (your package's `test()` function). Then add effect size:
+# spec <- test(spec)
+# spec <- effects(spec, conf_level = 0.90)
+#
+# Access results:
+# spec$fitted$es_value
+# spec$fitted$es_conf_low
+# spec$fitted$es_conf_high
+# spec$fitted$es_metric
+
+}
+\seealso{
+\code{\link[=comp_spec]{comp_spec()}}, diagnose(), test()
 }

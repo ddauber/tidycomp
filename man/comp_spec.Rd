@@ -2,19 +2,62 @@
 % Please edit documentation in R/comp_spec.R
 \name{comp_spec}
 \alias{comp_spec}
+\alias{print.comp_spec}
 \title{Create a comparison specification}
 \usage{
 comp_spec(data)
+
+\method{print}{comp_spec}(x, ...)
 }
 \arguments{
-\item{data}{A data frame (tibble recommended).}
+\item{data}{A data frame or tibble containing the dataset to analyze.
+A tibble is recommended but not required.}
+
+\item{x}{A \code{comp_spec} object.}
+
+\item{...}{Ignored; included for S3 compatibility.}
 }
 \value{
 An object of class \code{comp_spec}.
 }
 \description{
-Create a comparison specification
+Initialize a \emph{tidycomp} comparison specification. The returned object
+stores your raw data alongside analysis settings (roles, design, outcome
+type, strategy, engine), plus slots that later steps will fill
+(prepared data, diagnostics, fitted results).
+}
+\details{
+A \code{comp_spec} is a lightweight container to coordinate a comparison
+workflow. It does \strong{not} modify your data. Key fields include:
+\itemize{
+\item \code{data_raw}: the input data as a tibble.
+\item \code{data_prepared}: populated by preprocessing steps.
+\item \code{roles}: a named list for variable roles (e.g., outcome, group).
+\item \code{design}: description of the comparison design (e.g., two_group).
+\item \code{outcome_type}: expected outcome type (e.g., "numeric", "binary").
+\item \code{strategy}: analysis strategy; defaults to \code{"auto"}.
+\item \code{engine}: computation backend (if applicable).
+\item \code{diagnostics}: results from diagnostic checks.
+\item \code{fitted}: fitted model(s) or comparison result(s).
+}
+
+Downstream helpers (e.g., role setters, strategy/config setters, fitters)
+enrich this object but are not required at creation.
 }
 \examples{
+# minimal example
 spec <- comp_spec(mtcars)
+spec
+
+# access stored data
+head(spec$data_raw)
+
+# (illustrative) set roles and proceed in later steps:
+# spec <- spec |>
+#   set_roles(outcome = mpg, group = cyl) |>
+#   set_strategy("auto")
+
+# The print method provides a compact summary:
+spec <- comp_spec(mtcars)
+print(spec)
 }

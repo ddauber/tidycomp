@@ -12,14 +12,42 @@ step_trim_outliers(
 )
 }
 \arguments{
-\item{var}{A tidy-eval column (numeric outcome).}
+\item{var}{A tidy‑eval column identifying the \strong{numeric} variable to trim.}
 
-\item{method}{Currently only "iqr".}
+\item{method}{Outlier rule; currently only \code{"iqr"}.}
 
-\item{k}{Multiplier for IQR (default 3).}
+\item{k}{Multiplier for the IQR; fences are \code{Q1 - k*IQR} and \code{Q3 + k*IQR}.
+Defaults to \code{3} (more conservative than the common \code{1.5}).}
 
-\item{action}{"remove" or "winsorize".}
+\item{action}{One of \code{"remove"} or \code{"winsorize"}.}
+}
+\value{
+A function suitable for use inside \code{\link[=prepare]{prepare()}}'s \code{steps} list.
 }
 \description{
-Step: trim or winsorize outliers (IQR rule)
+Create a preparation step that flags outliers using the IQR rule and
+either removes them or winsorizes them to the nearest fence.
+}
+\details{
+This is a \emph{step constructor}: it returns a function with signature
+\verb{function(df, spec)} that:
+\itemize{
+\item Validates the target variable,
+\item Computes IQR‑based fences,
+\item Applies the chosen action,
+\item Returns \code{list(df = updated_df, log = one_row_tibble)} where the log
+contains \code{step}, \code{var}, \code{method}, \code{k}, \code{action}, \code{n_before}, \code{n_after},
+and \code{n_changed}.
+}
+}
+\examples{
+# Winsorize extreme values of `mpg` to IQR fences
+step <- step_trim_outliers(mpg, k = 3, action = "winsorize")
+res <- step(df = mtcars, spec = comp_spec(mtcars))
+res$log
+
+# Use as part of a preparation pipeline
+spec <- comp_spec(mtcars)
+spec <- prepare(spec, steps = list(step_trim_outliers(mpg, action = "remove")))
+spec$prep_log
 }

@@ -1,8 +1,37 @@
 #' Prepare data with explicit, logged steps
 #'
-#' @param spec A `comp_spec`.
-#' @param steps A list of step calls (see e.g. [step_trim_outliers()]).
-#' @param lock Logical, if TRUE, attaches a digest for reproducibility checks (future).
+#' Apply a sequence of preparation steps to a `comp_spec`, recording each
+#' step in a preparation log. Steps are small functions that take
+#' `df` (a data frame) and `spec` and return a list with elements
+#' `df` (the updated data) and `log` (a one‑row tibble describing the step).
+#'
+#' @param spec A `comp_spec` created by [comp_spec()].
+#' @param steps A list of step *calls* (e.g., [step_trim_outliers()]) to be
+#'   executed in order. Each step must return `list(df = ..., log = tibble)`.
+#' @param lock Logical; if `TRUE`, attaches a digest for reproducibility checks
+#'   (reserved for a future release; currently informational only).
+#'
+#' @details
+#' The function updates:
+#' - `spec$data_prepared`: the resulting tibble after all steps.
+#' - `spec$prep_log`: a tibble accumulating one log row per step with
+#'   step‑specific metadata.
+#'
+#' If no steps are provided, the raw data are passed through unchanged and a
+#' message is emitted.
+#'
+#' @return The input `spec` with `data_prepared` and `prep_log` populated.
+#'
+#' @examples
+#' spec <- comp_spec(mtcars)
+#'
+#' # Remove extreme MPG outliers using the IQR rule (k = 3)
+#' spec2 <- prepare(
+#'   spec,
+#'   steps = list(step_trim_outliers(var = mpg, k = 3, action = "remove"))
+#' )
+#' spec2$prep_log
+#' head(spec2$data_prepared)
 #' @export
 prepare <- function(spec, steps = list(), lock = FALSE) {
   stopifnot(inherits(spec, "comp_spec"))
@@ -29,10 +58,37 @@ prepare <- function(spec, steps = list(), lock = FALSE) {
 
 #' Step: trim or winsorize outliers (IQR rule)
 #'
-#' @param var A tidy-eval column (numeric outcome).
-#' @param method Currently only "iqr".
-#' @param k Multiplier for IQR (default 3).
-#' @param action "remove" or "winsorize".
+#' Create a preparation step that flags outliers using the IQR rule and
+#' either removes them or winsorizes them to the nearest fence.
+#'
+#' @param var A tidy‑eval column identifying the **numeric** variable to trim.
+#' @param method Outlier rule; currently only `"iqr"`.
+#' @param k Multiplier for the IQR; fences are `Q1 - k*IQR` and `Q3 + k*IQR`.
+#'   Defaults to `3` (more conservative than the common `1.5`).
+#' @param action One of `"remove"` or `"winsorize"`.
+#'
+#' @details
+#' This is a *step constructor*: it returns a function with signature
+#' `function(df, spec)` that:
+#' - Validates the target variable,
+#' - Computes IQR‑based fences,
+#' - Applies the chosen action,
+#' - Returns `list(df = updated_df, log = one_row_tibble)` where the log
+#'   contains `step`, `var`, `method`, `k`, `action`, `n_before`, `n_after`,
+#'   and `n_changed`.
+#'
+#' @return A function suitable for use inside [prepare()]'s `steps` list.
+#'
+#' @examples
+#' # Winsorize extreme values of `mpg` to IQR fences
+#' step <- step_trim_outliers(mpg, k = 3, action = "winsorize")
+#' res <- step(df = mtcars, spec = comp_spec(mtcars))
+#' res$log
+#'
+#' # Use as part of a preparation pipeline
+#' spec <- comp_spec(mtcars)
+#' spec <- prepare(spec, steps = list(step_trim_outliers(mpg, action = "remove")))
+#' spec$prep_log
 #' @export
 step_trim_outliers <- function(
   var,

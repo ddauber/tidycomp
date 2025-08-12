@@ -6,15 +6,56 @@
 \usage{
 test(spec)
 }
+\arguments{
+\item{spec}{A \code{comp_spec} created by \code{\link[=comp_spec]{comp_spec()}} with roles set via
+\code{set_roles(outcome, group)}, \code{design = "independent"}, and
+\code{outcome_type = "numeric"}. Optionally, run \code{\link[=diagnose]{diagnose()}} beforehand.}
+}
+\value{
+The input \code{spec}, updated with a fitted \code{comp_result} in \code{spec$fitted}.
+}
 \description{
-\itemize{
-\item If \code{engine} was set via \code{set_engine()}, that engine is run.
-\item Otherwise, engine is chosen from \code{strategy} and \code{diagnostics}:
-\itemize{
-\item "auto"/"pragmatic": prefer Welch t; if normality is severely flagged and very small n, suggest MW.
-\item "parametric": Student's t.
-\item "robust": Welch t for now (placeholder).
-\item "permutation": not implemented in MVP.
+Fit a \code{comp_spec} by selecting an engine (if not already set) and running
+the corresponding test. The chosen engine is based on \code{spec$strategy}
+and, when available, \code{spec$diagnostics}.
 }
+\details{
+\strong{Scope (MVP):}
+\itemize{
+\item Design: \code{design = "independent"} only.
+\item Outcome: \code{outcome_type = "numeric"} only.
 }
+
+\strong{Engine selection (defaults if \code{spec$engine} is \code{NULL}):}
+\itemize{
+\item \code{strategy = "parametric"} → Student's \emph{t} (\code{"student_t"}).
+\item \code{strategy = "auto"} / \code{"pragmatic"} / \code{"robust"} / \code{"permutation"} → Welch \emph{t} (\code{"welch_t"}) for now.
+\item If diagnostics indicate \strong{very small n} (< 15 in any group) \strong{and severe non‑normality}
+(Shapiro \emph{p} < .01), a gentle warning suggests using \code{"mann_whitney"}.
+}
+
+On success, results are stored in \code{spec$fitted} as a \code{comp_result}, and the engine used is reported.
+}
+\examples{
+# Minimal workflow
+spec <- comp_spec(mtcars)
+spec$roles <- list(outcome = "mpg", group = "am")
+spec$design <- "independent"
+spec$outcome_type <- "numeric"
+
+# (Optional) run diagnostics to inform engine nudges
+spec <- diagnose(spec)
+
+# Fit using strategy-based engine selection (Welch t by default)
+spec <- test(spec)
+spec$fitted
+
+# Force a specific engine, then fit
+# spec <- set_engine(spec, "student_t")
+# spec <- test(spec)
+# tidy(spec$fitted)
+}
+\seealso{
+\code{\link[=set_roles]{set_roles()}}, \code{\link[=set_engine]{set_engine()}}, \code{\link[=diagnose]{diagnose()}}, \code{\link[=compare_engines]{compare_engines()}},
+\code{\link[=decision_tree]{decision_tree()}}, \code{\link[=comp_spec]{comp_spec()}}
 }

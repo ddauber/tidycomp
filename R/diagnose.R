@@ -1,10 +1,43 @@
 #' Diagnose a comparison specification (non-destructive)
 #'
-#' Runs basic checks: group counts, variance heterogeneity (Brown–Forsythe proxy),
-#' Shapiro normality (per group, flagged only), and simple IQR outlier counts.
+#' Run lightweight checks on a `comp_spec`: group sizes, variance
+#' heterogeneity (Brown–Forsythe proxy), within‑group normality (Shapiro),
+#' and simple IQR‑based outlier counts. The function **does not** alter
+#' the raw data; it attaches a `diagnostics` list to the spec.
 #'
-#' @param spec A `comp_spec` with roles/design/outcome_type set.
-#' @return The updated `comp_spec` with a `diagnostics` list.
+#' @param spec A `comp_spec` with roles/design/outcome type already set.
+#'   Must include at least an outcome variable and a group variable in
+#'   `spec$roles`.
+#'
+#' @details
+#' The following summaries are computed and stored in `spec$diagnostics`:
+#'
+#' - `group_sizes`: a tibble with counts per group.
+#' - `var_bf_p`: Brown–Forsythe proxy p‑value for variance heterogeneity.
+#' - `normality`: per‑group Shapiro–Wilk p‑values (flagged only; not enforced).
+#' - `notes`: human‑readable notes highlighting potential issues
+#'   (e.g., small groups, variance heterogeneity, non‑normality, outliers).
+#'
+#' These diagnostics are intended as **signals** to guide strategy/engine
+#' choices (e.g., robust/permutation) rather than hard pass/fail gates.
+#'
+#' @return The input `spec`, updated with a `diagnostics` list.
+#'
+#' @examples
+#' # setup
+#' spec <- comp_spec(mtcars)
+#' spec$roles <- list(outcome = "mpg", group = "cyl")
+#' spec$outcome_type <- "numeric"
+#'
+#' # run diagnostics (non-destructive; adds `diagnostics`)
+#' spec <- diagnose(spec)
+#' spec$diagnostics$group_sizes
+#' spec$diagnostics$notes
+#'
+#' # Example interpretation:
+#' # - Consider robust/permutation strategies if variance heterogeneity or
+#' #   non-normality is flagged.
+#' # - Very small groups may limit parametric assumptions.
 #' @export
 diagnose <- function(spec) {
   stopifnot(inherits(spec, "comp_spec"))

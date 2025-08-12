@@ -2,15 +2,34 @@
 % Please edit documentation in R/helpers.R
 \name{compare_engines}
 \alias{compare_engines}
-\title{Compare multiple engines on the same spec}
+\title{Compare multiple engines on the same specification}
 \usage{
 compare_engines(spec, engines = c("welch_t", "student_t", "mann_whitney"))
 }
 \arguments{
-\item{spec}{A \code{comp_spec}.}
+\item{spec}{A \code{comp_spec} created by \code{\link[=comp_spec]{comp_spec()}} and ready to fit
+(roles and outcome type must be set).}
 
-\item{engines}{Character vector of engine names.}
+\item{engines}{Character vector of engine IDs to compare. Each must
+correspond to a registered engine (see \code{.tidycomp_engines()}).}
+}
+\value{
+A tibble combining tidy results from all requested engines.
 }
 \description{
-Compare multiple engines on the same spec
+Fit the same \code{comp_spec} with several different engines and return
+a combined tibble of results. This is useful for quickly seeing how
+different inferential approaches (e.g., parametric vs. robust) perform
+on the same dataset and roles.
+}
+\details{
+For each engine in \code{engines}, this function:
+\enumerate{
+\item Clones the input spec and sets the requested engine via \code{set_engine()}.
+\item Fits it using \code{\link[=test]{test()}}.
+\item Tidies the fitted result into a one-row tibble and adds a column
+\code{engine_forced} indicating the engine used.
+}
+
+The resulting tibbles are row-bound into a single tibble for comparison.
 }
