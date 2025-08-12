@@ -2,11 +2,11 @@
 % Please edit documentation in R/prepare.R
 \name{step_trim_outliers}
 \alias{step_trim_outliers}
-\title{Step: trim or winsorize outliers (IQR rule)}
+\title{Step: trim or winsorize outliers}
 \usage{
 step_trim_outliers(
   var,
-  method = c("iqr"),
+  method = c("iqr", "mad", "sd"),
   k = 3,
   action = c("remove", "winsorize")
 )
@@ -14,10 +14,11 @@ step_trim_outliers(
 \arguments{
 \item{var}{A tidy‑eval column identifying the \strong{numeric} variable to trim.}
 
-\item{method}{Outlier rule; currently only \code{"iqr"}.}
+\item{method}{Outlier rule; one of \code{"iqr"}, \code{"mad"}, or \code{"sd"}.}
 
-\item{k}{Multiplier for the IQR; fences are \code{Q1 - k*IQR} and \code{Q3 + k*IQR}.
-Defaults to \code{3} (more conservative than the common \code{1.5}).}
+\item{k}{Multiplier for the chosen scale (IQR, MAD, or SD); defaults to \code{3}. For IQR,
+fences are \code{Q1 - k*IQR} and \code{Q3 + k*IQR}; for MAD, \code{median \u00b1 k*MAD}; for SD,
+\code{mean \u00b1 k*SD}.}
 
 \item{action}{One of \code{"remove"} or \code{"winsorize"}.}
 }
@@ -25,7 +26,7 @@ Defaults to \code{3} (more conservative than the common \code{1.5}).}
 A function suitable for use inside \code{\link[=prepare]{prepare()}}'s \code{steps} list.
 }
 \description{
-Create a preparation step that flags outliers using the IQR rule and
+Create a preparation step that flags outliers using common rules and
 either removes them or winsorizes them to the nearest fence.
 }
 \details{
@@ -33,7 +34,7 @@ This is a \emph{step constructor}: it returns a function with signature
 \verb{function(df, spec)} that:
 \itemize{
 \item Validates the target variable,
-\item Computes IQR‑based fences,
+\item Computes method-specific fences,
 \item Applies the chosen action,
 \item Returns \code{list(df = updated_df, log = one_row_tibble)} where the log
 contains \code{step}, \code{var}, \code{method}, \code{k}, \code{action}, \code{n_before}, \code{n_after},
@@ -42,12 +43,12 @@ and \code{n_changed}.
 }
 \examples{
 # Winsorize extreme values of `mpg` to IQR fences
-step <- step_trim_outliers(mpg, k = 3, action = "winsorize")
+step <- step_trim_outliers(mpg, method = "iqr", k = 3, action = "winsorize")
 res <- step(df = mtcars, spec = comp_spec(mtcars))
 res$log
 
 # Use as part of a preparation pipeline
 spec <- comp_spec(mtcars)
-spec <- prepare(spec, steps = list(step_trim_outliers(mpg, action = "remove")))
+spec <- prepare(spec, steps = list(step_trim_outliers(mpg, method = "sd", action = "remove")))
 spec$prep_log
 }

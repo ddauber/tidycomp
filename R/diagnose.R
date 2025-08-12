@@ -83,11 +83,11 @@ diagnose <- function(spec) {
     dplyr::summarise(
       n = dplyr::n(),
       out_lo = {
-        lim <- .flag_outliers_iqr(.data[[outcome]])
+        lim <- .flag_outliers(.data[[outcome]], method = "iqr")
         sum(.data[[outcome]] < lim$lo, na.rm = TRUE)
       },
       out_hi = {
-        lim <- .flag_outliers_iqr(.data[[outcome]])
+        lim <- .flag_outliers(.data[[outcome]], method = "iqr")
         sum(.data[[outcome]] > lim$hi, na.rm = TRUE)
       },
       .groups = "drop"

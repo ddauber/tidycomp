@@ -41,7 +41,7 @@ spec <- comp_spec(mtcars)
 # Remove extreme MPG outliers using the IQR rule (k = 3)
 spec2 <- prepare(
   spec,
-  steps = list(step_trim_outliers(var = mpg, k = 3, action = "remove"))
+  steps = list(step_trim_outliers(var = mpg, method = "iqr", k = 3, action = "remove"))
 )
 spec2$prep_log
 head(spec2$data_prepared)

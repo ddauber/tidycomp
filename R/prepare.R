@@ -56,22 +56,26 @@ prepare <- function(spec, steps = list(), lock = FALSE) {
   spec
 }
 
-#' Step: trim or winsorize outliers (IQR rule)
+#' Step: trim or winsorize outliers
 #'
-#' Create a preparation step that flags outliers using the IQR rule and
-#' either removes them or winsorizes them to the nearest fence.
+#' Create a preparation step that flags outliers using common rules and
+#' either removes them or winsorizes them to the nearest fence. Available
+#' methods are the interquartile range (IQR), median absolute deviation (MAD),
+#' and standard deviation (SD). Defaults follow the guidance in the
+#' [*r4np* book](https://r4np.com/09_sources_of_bias.html#sec-dealing-with-outliers).
 #'
 #' @param var A tidy‑eval column identifying the **numeric** variable to trim.
-#' @param method Outlier rule; currently only `"iqr"`.
-#' @param k Multiplier for the IQR; fences are `Q1 - k*IQR` and `Q3 + k*IQR`.
-#'   Defaults to `3` (more conservative than the common `1.5`).
+#' @param method Outlier rule; one of `"iqr"`, `"mad"`, or `"sd"`.
+#' @param k Multiplier for the chosen scale (IQR, MAD, or SD); defaults to `3`.
+#'   For IQR, fences are `Q1 - k*IQR` and `Q3 + k*IQR`; for MAD, `median ± k*MAD`;
+#'   for SD, `mean ± k*SD`.
 #' @param action One of `"remove"` or `"winsorize"`.
 #'
 #' @details
 #' This is a *step constructor*: it returns a function with signature
 #' `function(df, spec)` that:
 #' - Validates the target variable,
-#' - Computes IQR‑based fences,
+#' - Computes method-specific fences,
 #' - Applies the chosen action,
 #' - Returns `list(df = updated_df, log = one_row_tibble)` where the log
 #'   contains `step`, `var`, `method`, `k`, `action`, `n_before`, `n_after`,
@@ -81,18 +85,18 @@ prepare <- function(spec, steps = list(), lock = FALSE) {
 #'
 #' @examples
 #' # Winsorize extreme values of `mpg` to IQR fences
-#' step <- step_trim_outliers(mpg, k = 3, action = "winsorize")
+#' step <- step_trim_outliers(mpg, method = "iqr", k = 3, action = "winsorize")
 #' res <- step(df = mtcars, spec = comp_spec(mtcars))
 #' res$log
 #'
 #' # Use as part of a preparation pipeline
 #' spec <- comp_spec(mtcars)
-#' spec <- prepare(spec, steps = list(step_trim_outliers(mpg, action = "remove")))
+#' spec <- prepare(spec, steps = list(step_trim_outliers(mpg, method = "sd", action = "remove")))
 #' spec$prep_log
 #' @export
 step_trim_outliers <- function(
   var,
-  method = c("iqr"),
+  method = c("iqr", "mad", "sd"),
   k = 3,
   action = c("remove", "winsorize")
 ) {
@@ -107,7 +111,7 @@ step_trim_outliers <- function(
       cli::cli_abort("`step_trim_outliers()` requires a numeric variable.")
     }
 
-    lim <- .flag_outliers_iqr(df[[v]], k = k)
+    lim <- .flag_outliers(df[[v]], method = method, k = k)
     n_before <- nrow(df)
 
     if (action == "remove") {

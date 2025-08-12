@@ -70,21 +70,41 @@
   df
 }
 
-#' Flag outliers using the IQR rule
+#' Flag outliers using common rules
 #'
-#' Compute lower/upper fences for finite values of `x` based on the IQR rule.
+#' Compute lower/upper fences for finite values of `x` based on one of
+#' three rules: interquartile range (IQR), median absolute deviation (MAD),
+#' or standard deviation (SD). The default `k = 3` aligns with the
+#' recommendations in the [*r4np* book](https://r4np.com/09_sources_of_bias.html#sec-dealing-with-outliers).
 #'
 #' @param x Numeric vector.
-#' @param k Multiplier for the IQR (default 3).
+#' @param method Outlier rule; one of `"iqr"`, `"mad"`, or `"sd"`.
+#' @param k Multiplier for the chosen scale (default 3).
 #' @return A list with elements `lo` and `hi`.
 #' @keywords internal
 #' @noRd
-.flag_outliers_iqr <- function(x, k = 3) {
+.flag_outliers <- function(x, method = c("iqr", "mad", "sd"), k = 3) {
+  method <- match.arg(method)
   x <- x[is.finite(x)]
-  q <- stats::quantile(x, probs = c(.25, .75), na.rm = TRUE, names = FALSE)
-  iqr <- diff(q)
-  lo <- q[1] - k * iqr
-  hi <- q[2] + k * iqr
+  if (!length(x)) {
+    return(list(lo = NA_real_, hi = NA_real_))
+  }
+  if (method == "iqr") {
+    q <- stats::quantile(x, probs = c(.25, .75), na.rm = TRUE, names = FALSE)
+    scale <- diff(q)
+    lo <- q[1] - k * scale
+    hi <- q[2] + k * scale
+  } else if (method == "mad") {
+    center <- stats::median(x, na.rm = TRUE)
+    scale <- stats::median(abs(x - center), na.rm = TRUE)
+    lo <- center - k * scale
+    hi <- center + k * scale
+  } else {
+    center <- mean(x, na.rm = TRUE)
+    scale <- stats::sd(x, na.rm = TRUE)
+    lo <- center - k * scale
+    hi <- center + k * scale
+  }
   list(lo = lo, hi = hi)
 }
 

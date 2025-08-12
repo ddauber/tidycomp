@@ -76,7 +76,12 @@ spec <- test(spec) |> effects()
 report(spec)
 ```
 
-> **Notes:**  
+Outlier detection defaults to the IQR*3 rule, but you can also set
+`method = "mad"` or `method = "sd"` in `step_trim_outliers()` for median
+absolute deviation or standard deviation fences, respectively (see
+[r4np, dealing with outliers](https://r4np.com/09_sources_of_bias.html#sec-dealing-with-outliers)).
+
+> **Notes:**
 > - If equal variances look plausible, tidycomp will inform you that
 > Student’s t would likely agree.  
 > - If n is very small *and* non-normality is severe, tidycomp will
@@ -186,7 +191,7 @@ spec <- comp_spec(mtcars) |>
 
 spec <- prepare(
   spec,
-  steps = list(step_trim_outliers(mpg, action = "winsorize"))
+  steps = list(step_trim_outliers(mpg, method = "mad", action = "winsorize"))
 )
 spec <- test(spec) |> effects()
 
