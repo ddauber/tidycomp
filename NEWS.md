@@ -1,3 +1,13 @@
+# tidycomp 0.1.0
+
+* Package supports unpaird 2-group comparisons using: student's t-test,
+  Welch's t-test, and Mann-Whitney U test.
+* Supports computation of all effect sizes for the above tests.
+* Documentation for all functions has been added/updated/tidied.
+* `README.md` has been updated to include a link to the Contributor Code of Conduct.
+* `step_trim_outliers()` now supports `method = "iqr"`, `"mad"`, or `"sd"`
+  (all default to `k = 3`), following guidance from the r4np book.
+
 # tidycomp 0.0.0.9000
 
 * Initial commit: tidycomp MVP structure, README and NEWS.

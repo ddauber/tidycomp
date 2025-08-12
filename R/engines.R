@@ -1,0 +1,193 @@
+#' @keywords internal
+#' @noRd
+#' @details
+#' **Developer note:** Engines are small, pure functions that accept a
+#' prepared `data` frame and `meta` (roles, diagnostics, design) and return
+#' a standardized, one-row result. To add a new engine, implement
+#' `engine_*()` with the same contract and register it in `.tidycomp_engines()`.
+
+#' Engine registry (internal)
+#'
+#' Return the named registry of available analysis engines.
+#' Keys are user-facing engine names; values are the corresponding
+#' engine functions.
+#'
+#' This is used by the dispatcher to resolve `strategy`/`engine`
+#' choices to a concrete test implementation.
+#'
+#' @return A named list mapping engine ids to functions.
+#' @keywords internal
+#' @noRd
+.tidycomp_engines <- function() {
+  list(
+    welch_t = engine_welch_t,
+    student_t = engine_student_t,
+    mann_whitney = engine_mann_whitney
+  )
+}
+
+#' Welch two-sample t-test engine (internal)
+#'
+#' Perform a two-sample Welch *t*-test for a numeric outcome with two groups
+#' (unequal variances). Expects a standardized two-column frame containing
+#' the outcome and group specified in `meta$roles`.
+#'
+#' @param data A data frame containing at least the outcome and group columns.
+#' @param meta A list carrying analysis metadata (e.g., `roles`, `diagnostics`,
+#'   and any design notes) assembled upstream.
+#'
+#' @details
+#' Assumes: numeric outcome, two groups (factor with 2 levels).
+#' Computes the Welch test (i.e., unequal variances). Any preflight checks
+#' should be handled before calling the engine.
+#'
+#' @return A one-row tibble (or list) with standardized fields such as:
+#'   `method`, `design`, `n`, `statistic`, `df`, `p.value`, `estimate`,
+#'   `conf.low`, `conf.high`, `metric`, and `notes`.
+#'
+#' @keywords internal
+#' @noRd
+engine_welch_t <- function(data, meta) {
+  df <- .standardize_two_group_numeric(
+    data,
+    meta$roles$outcome,
+    meta$roles$group
+  )
+  fit <- stats::t.test(outcome ~ group, data = df, var.equal = FALSE)
+  tibble::tibble(
+    test = "t",
+    method = "Welch t-test",
+    engine = "welch_t",
+    n = nrow(df),
+    statistic = unname(fit$statistic),
+    df = unname(fit$parameter),
+    p.value = unname(fit$p.value),
+    estimate = diff(rev(fit$estimate)), # group2 - group1 (consistent with t.test)
+    conf.low = fit$conf.int[1],
+    conf.high = fit$conf.int[2],
+    metric = "mean_diff",
+    notes = list(meta$diagnostics$notes %||% character())
+  )
+}
+
+#' Student (equal-variance) t-test engine (internal)
+#'
+#' Perform a two-sample Student *t*-test for a numeric outcome with two groups
+#' (assumes equal variances / pooled SD).
+#'
+#' @param data A data frame containing at least the outcome and group columns.
+#' @param meta A list with roles/diagnostics and other upstream metadata.
+#'
+#' @details
+#' Assumes: numeric outcome, two groups (factor with 2 levels).
+#' Uses the pooled-variance *t* test; use the Welch engine when variances
+#' appear heterogeneous.
+#'
+#' @return A one-row tibble (or list) with standardized result fields:
+#'   `method`, `design`, `n`, `statistic`, `df`, `p.value`, `estimate`,
+#'   `conf.low`, `conf.high`, `metric`, and `notes`.
+#'
+#' @keywords internal
+#' @noRd
+engine_student_t <- function(data, meta) {
+  df <- .standardize_two_group_numeric(
+    data,
+    meta$roles$outcome,
+    meta$roles$group
+  )
+  fit <- stats::t.test(outcome ~ group, data = df, var.equal = TRUE)
+  tibble::tibble(
+    test = "t",
+    method = "Student's t-test",
+    engine = "student_t",
+    n = nrow(df),
+    statistic = unname(fit$statistic),
+    df = unname(fit$parameter),
+    p.value = unname(fit$p.value),
+    estimate = diff(rev(fit$estimate)),
+    conf.low = fit$conf.int[1],
+    conf.high = fit$conf.int[2],
+    metric = "mean_diff",
+    notes = list(meta$diagnostics$notes %||% character())
+  )
+}
+
+#' Mann-Whitney (Wilcoxon rank-sum) engine (internal)
+#'
+#' Perform a two-group, distribution-free comparison using the
+#' Mann-Whitney / Wilcoxon rank-sum test. Useful when normality/variance
+#' assumptions are doubtful or the outcome is ordinal.
+#'
+#' @param data A data frame containing at least the outcome and group columns.
+#' @param meta A list with roles/diagnostics and other upstream metadata.
+#'
+#' @details
+#' Assumes: numeric or ordinal outcome, two groups (factor with 2 levels).
+#' Reports a standardized result set; the primary `metric` reflects
+#' stochastic ordering (e.g., probability of superiority).
+#'
+#' @return A one-row tibble (or list) with standardized result fields:
+#'   `method`, `design`, `n`, `statistic`, `df` (may be `NA`), `p.value`,
+#'   `estimate` (may be `NA` for MVP), `conf.low`/`conf.high` (may be `NA`),
+#'   `metric`, and `notes`.
+#'
+#' @keywords internal
+#' @noRd
+engine_mann_whitney <- function(data, meta) {
+  df <- .standardize_two_group_numeric(
+    data,
+    meta$roles$outcome,
+    meta$roles$group
+  )
+
+  # settings with sensible defaults
+  alt <- meta$settings$alternative %||% "two.sided"
+  conf_level <- meta$settings$conf_level %||% 0.95
+  exact_opt <- meta$settings$exact %||% NULL
+
+  # if ties in outcomes, use normal approximation (exact test not valid)
+  if (is.null(exact_opt)) {
+    ties_present <- any(duplicated(rank(df$outcome)))
+    exact_opt <- if (ties_present) FALSE else NULL
+  }
+
+  fit <- stats::wilcox.test(
+    outcome ~ group,
+    data = df,
+    alternative = alt,
+    conf.int = TRUE,
+    conf.level = conf_level,
+    exact = exact_opt, # let R choose unless ties force FALSE
+    correct = TRUE # continuity correction for normal approx
+  )
+
+  # safe extraction (estimate/CI may be absent in edge cases)
+  est <- if (!is.null(fit$estimate)) unname(fit$estimate) else NA_real_
+  has_ci <- !is.null(fit$conf.int) && length(fit$conf.int) == 2L
+  ci_lo <- if (has_ci) unname(fit$conf.int[1]) else NA_real_
+  ci_hi <- if (has_ci) unname(fit$conf.int[2]) else NA_real_
+  clvl <- if (has_ci) unname(attr(fit$conf.int, "conf.level")) else conf_level
+
+  tibble::tibble(
+    test = "wilcox",
+    method = fit$method, # e.g., "Wilcoxon rank sum exact test"
+    engine = "mann_whitney",
+    n = nrow(df),
+    statistic = unname(fit$statistic), # W
+    df = NA_real_, # nonparametric ⇒ no df
+    p.value = unname(fit$p.value),
+    estimate = est, # Hodges–Lehmann location shift
+    conf.low = ci_lo,
+    conf.high = ci_hi,
+    conf.level = clvl,
+    metric = "location_shift_hodges_lehmann", # clearer than "stochastic_ordering"
+    notes = list(c(
+      meta$diagnostics$notes %||% character(),
+      if (!has_ci) {
+        "CI unavailable (ties/small sample/edge case)."
+      } else {
+        character()
+      }
+    ))
+  )
+}
