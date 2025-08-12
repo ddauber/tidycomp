@@ -4,7 +4,7 @@
 \alias{effects}
 \title{Add an effect size to a fitted comparison}
 \usage{
-effects(spec, conf_level = 0.95)
+effects(spec, conf_level = 0.95, effect = "default")
 }
 \arguments{
 \item{spec}{A \code{comp_spec} created by \code{\link[=comp_spec]{comp_spec()}} and already fitted
@@ -13,29 +13,43 @@ numeric outcome and a two‑level group.}
 
 \item{conf_level}{Confidence level for the interval (numeric in (0, 1),
 default \code{0.95}).}
+
+\item{effect}{Optional override for some engines. Currently, only
+\code{effect = "cohens_d"} is supported for the \code{welch_t} engine to
+compute Cohen's \emph{d} instead of Hedges' \emph{g}.}
 }
 \value{
 The input \code{spec}, updated in place with effect‑size fields in
 \code{spec$fitted}: \code{es_value}, \code{es_conf_low}, \code{es_conf_high}, \code{es_metric}.
 }
 \description{
-Compute Hedges' \emph{g} (with a confidence interval) for a two‑group,
-numeric outcome and store it on the \code{comp_spec}. This is a
-post‑fit step that reads from \code{spec$fitted} and writes the following:
-\code{es_value}, \code{es_conf_low}, \code{es_conf_high}, and \code{es_metric} (set to
-\code{"Hedges_g"}).
+Compute an effect size (with a confidence interval) for a two‑group,
+numeric outcome based on the inferential engine stored in
+\code{spec$fitted$engine}. Supported tests map to the following metrics:
 }
 \details{
 \itemize{
+\item \code{"student_t"}: Cohen's \emph{d} (no Hedges correction)
+\item \code{"welch_t"}: Hedges' \emph{g} (default) or Cohen's \emph{d} when
+\code{effect = "cohens_d"}
+\item \code{"mann_whitney"}: Wilcoxon \emph{r} (rank biserial)
+}
+
+The function reads from \code{spec$fitted} and writes \code{es_value},
+\code{es_conf_low}, \code{es_conf_high}, and \code{es_metric} before returning \code{spec}.
+\itemize{
 \item Supported design: two‑group comparison with a \strong{numeric} outcome.
-\item Backend: \href{https://easystats.github.io/effectsize/}{\code{effectsize::hedges_g()}}.
+\item Backend functions from the
+\href{https://easystats.github.io/effectsize/}{\code{effectsize}} package
+(e.g., \code{hedges_g()}, \code{cohens_d()}, \code{rank_biserial()}).
 \item If the \strong{effectsize} package is not installed, a warning is issued
 and the input \code{spec} is returned unchanged.
 }
 
 The function selects \code{spec$data_prepared} when available, otherwise
 falls back to \code{spec$data_raw}. It standardizes inputs internally and
-then calls \code{effectsize::hedges_g(outcome ~ group, ...)}.
+then calls the appropriate effect size function based on
+\code{spec$fitted$engine}.
 }
 \examples{
 # Minimal workflow (illustrative):
