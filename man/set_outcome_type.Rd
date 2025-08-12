@@ -7,8 +7,17 @@
 set_outcome_type(spec, type = c("numeric", "binary", "ordered", "count"))
 }
 \arguments{
+\item{spec}{A \code{comp_spec}.}
+
 \item{type}{One of "numeric", "binary", "ordered", "count".}
 }
+\value{
+The updated \code{comp_spec}.
+}
 \description{
-Set outcome type
+Declare the outcome type used by downstream engines and checks.
+}
+\examples{
+spec <- comp_spec(mtcars)
+spec <- set_outcome_type(spec, "numeric")
 }

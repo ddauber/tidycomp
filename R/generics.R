@@ -21,7 +21,7 @@ tidy.comp_result <- function(x, ...) {
 
 #' Report summary
 #'
-#' Generic for printing a concise, human‑readable summary of results.
+#' Generic for printing a concise, human-readable summary of results.
 #' Methods emit messages via **cli**.
 #'
 #' @param x An object to report. Methods are provided for `comp_spec`
@@ -65,11 +65,9 @@ report.comp_result <- function(x, ...) {
 #'
 #' Generic for producing a default plot. For `comp_spec`, this delegates
 #' to its fitted result. For `comp_result`, type `"estimation"` draws a
-#' point estimate with confidence interval; `"diagnostics"` is reserved
-#' for future use.
+#' point estimate with confidence interval; `"diagnostics"` is reserved.
 #'
-#' @param object An object to plot. Methods are provided for `comp_spec`
-#'   and `comp_result`.
+#' @param object Object to plot.
 #' @param ... Passed to methods.
 #'
 #' @return A `ggplot` object, or `NULL` (invisibly) when not applicable.
@@ -98,6 +96,9 @@ autoplot.comp_spec <- function(
 }
 
 #' @rdname autoplot
+#' @param type Plot type. One of `"estimation"` or `"diagnostics"`.
+#' @param data A data frame used for plotting (usually prepared/raw data).
+#' @param roles A named list of roles, e.g., `list(outcome = , group = )`.
 #' @export
 autoplot.comp_result <- function(
   object,
@@ -135,3 +136,7 @@ autoplot.comp_result <- function(
     invisible(NULL)
   }
 }
+
+
+# define global variables to avoid R CMD check warnings
+utils::globalVariables(c(".data", "label", "y", "ymin", "ymax", "n"))

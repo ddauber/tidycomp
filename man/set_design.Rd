@@ -7,8 +7,17 @@
 set_design(spec, design = c("independent", "paired", "repeated", "factorial"))
 }
 \arguments{
+\item{spec}{A \code{comp_spec}.}
+
 \item{design}{One of "independent", "paired", "repeated", "factorial".}
 }
+\value{
+The updated \code{comp_spec}.
+}
 \description{
-Set design
+Define the comparison design on a \code{comp_spec}.
+}
+\examples{
+spec <- comp_spec(mtcars)
+spec <- set_design(spec, "independent")
 }

@@ -6,6 +6,19 @@
 \usage{
 set_roles(spec, outcome, group, id = NULL, weights = NULL)
 }
+\arguments{
+\item{spec}{A \code{comp_spec}.}
+
+\item{outcome, group, id, weights}{Tidy-eval columns defining roles.
+\code{id} and \code{weights} are optional.}
+}
+\value{
+The updated \code{comp_spec}.
+}
 \description{
-Set roles (outcome, group, id, weights)
+Capture and store variable roles on a \code{comp_spec}.
+}
+\examples{
+spec <- comp_spec(mtcars)
+spec <- set_roles(spec, outcome = mpg, group = am)
 }

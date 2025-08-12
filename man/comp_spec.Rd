@@ -21,43 +21,45 @@ A tibble is recommended but not required.}
 An object of class \code{comp_spec}.
 }
 \description{
-Initialize a \emph{tidycomp} comparison specification. The returned object
-stores your raw data alongside analysis settings (roles, design, outcome
-type, strategy, engine), plus slots that later steps will fill
+Initialize a tidycomp comparison specification. The returned object
+stores your raw data alongside analysis settings (roles, design,
+outcome type, strategy, engine), plus slots that later steps will fill
 (prepared data, diagnostics, fitted results).
 }
 \details{
 A \code{comp_spec} is a lightweight container to coordinate a comparison
-workflow. It does \strong{not} modify your data. Key fields include:
+workflow. It does not modify your data. Key fields include:
 \itemize{
-\item \code{data_raw}: the input data as a tibble.
-\item \code{data_prepared}: populated by preprocessing steps.
-\item \code{roles}: a named list for variable roles (e.g., outcome, group).
-\item \code{design}: description of the comparison design (e.g., two_group).
-\item \code{outcome_type}: expected outcome type (e.g., "numeric", "binary").
-\item \code{strategy}: analysis strategy; defaults to \code{"auto"}.
-\item \code{engine}: computation backend (if applicable).
-\item \code{diagnostics}: results from diagnostic checks.
-\item \code{fitted}: fitted model(s) or comparison result(s).
+\item \code{data_raw}: the input data as a tibble
+\item \code{data_prepared}: populated by preparation steps
+\item \code{roles}: a named list for variable roles (e.g., outcome, group)
+\item \code{design}: comparison design (e.g., "independent")
+\item \code{outcome_type}: expected outcome type (e.g., "numeric", "binary")
+\item \code{strategy}: analysis strategy; defaults to "auto"
+\item \code{engine}: computation backend (if applicable)
+\item \code{diagnostics}: results from diagnostic checks
+\item \code{fitted}: fitted model(s) or comparison result(s)
 }
-
-Downstream helpers (e.g., role setters, strategy/config setters, fitters)
-enrich this object but are not required at creation.
 }
 \examples{
-# minimal example
+# Minimal example
 spec <- comp_spec(mtcars)
 spec
 
-# access stored data
+# Access stored data
 head(spec$data_raw)
 
-# (illustrative) set roles and proceed in later steps:
-# spec <- spec |>
-#   set_roles(outcome = mpg, group = cyl) |>
-#   set_strategy("auto")
+# Illustrative next steps:
+# spec |>
+#   set_roles(outcome = mpg, group = am) |>
+#   set_design("independent") |>
+#   set_outcome_type("numeric") |>
+#   test()
 
-# The print method provides a compact summary:
 spec <- comp_spec(mtcars)
 print(spec)
+}
+\seealso{
+\code{\link[=set_roles]{set_roles()}}, \code{\link[=set_design]{set_design()}}, \code{\link[=set_outcome_type]{set_outcome_type()}},
+\code{\link[=set_strategy]{set_strategy()}}, \code{\link[=set_engine]{set_engine()}}, \code{\link[=diagnose]{diagnose()}}, \code{\link[=test]{test()}}
 }

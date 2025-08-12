@@ -13,10 +13,15 @@ autoplot(object, ...)
 \method{autoplot}{comp_result}(object, type = c("estimation", "diagnostics"), data, roles, ...)
 }
 \arguments{
-\item{object}{An object to plot. Methods are provided for \code{comp_spec}
-and \code{comp_result}.}
+\item{object}{Object to plot.}
 
 \item{...}{Passed to methods.}
+
+\item{type}{Plot type. One of \code{"estimation"} or \code{"diagnostics"}.}
+
+\item{data}{A data frame used for plotting (usually prepared/raw data).}
+
+\item{roles}{A named list of roles, e.g., \code{list(outcome = , group = )}.}
 }
 \value{
 A \code{ggplot} object, or \code{NULL} (invisibly) when not applicable.
@@ -24,6 +29,5 @@ A \code{ggplot} object, or \code{NULL} (invisibly) when not applicable.
 \description{
 Generic for producing a default plot. For \code{comp_spec}, this delegates
 to its fitted result. For \code{comp_result}, type \code{"estimation"} draws a
-point estimate with confidence interval; \code{"diagnostics"} is reserved
-for future use.
+point estimate with confidence interval; \code{"diagnostics"} is reserved.
 }

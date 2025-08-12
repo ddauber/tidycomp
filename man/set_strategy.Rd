@@ -10,8 +10,17 @@ set_strategy(
 )
 }
 \arguments{
-\item{strategy}{One of "auto","pragmatic","parametric","robust","permutation".}
+\item{spec}{A \code{comp_spec}.}
+
+\item{strategy}{One of "auto", "pragmatic", "parametric", "robust", "permutation".}
+}
+\value{
+The updated \code{comp_spec}.
 }
 \description{
-Set strategy (engine selection policy)
+Choose how the engine will be selected when running \code{\link[=test]{test()}}.
+}
+\examples{
+spec <- comp_spec(mtcars)
+spec <- set_strategy(spec, "auto")
 }

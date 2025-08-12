@@ -16,18 +16,18 @@ The input \code{spec}, updated with a \code{diagnostics} list.
 }
 \description{
 Run lightweight checks on a \code{comp_spec}: group sizes, variance
-heterogeneity (Brown–Forsythe proxy), within‑group normality (Shapiro),
-and simple IQR‑based outlier counts. The function \strong{does not} alter
+heterogeneity (Brown–Forsythe proxy), within-group normality (Shapiro),
+and simple IQR-based outlier counts. The function \strong{does not} alter
 the raw data; it attaches a \code{diagnostics} list to the spec.
 }
 \details{
 The following summaries are computed and stored in \code{spec$diagnostics}:
 \itemize{
 \item \code{group_sizes}: a tibble with counts per group.
-\item \code{var_bf_p}: Brown–Forsythe proxy p‑value for variance heterogeneity.
-\item \code{normality}: per‑group Shapiro–Wilk p‑values (flagged only; not enforced).
-\item \code{notes}: human‑readable notes highlighting potential issues
-(e.g., small groups, variance heterogeneity, non‑normality, outliers).
+\item \code{var_bf_p}: Brown-Forsythe proxy p‑value for variance heterogeneity.
+\item \code{normality}: per-group Shapiro-Wilk p‑values (flagged only; not enforced).
+\item \code{notes}: human-readable notes highlighting potential issues
+(e.g., small groups, variance heterogeneity, non-normality, outliers).
 }
 
 These diagnostics are intended as \strong{signals} to guide strategy/engine

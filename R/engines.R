@@ -3,13 +3,13 @@
 #' @details
 #' **Developer note:** Engines are small, pure functions that accept a
 #' prepared `data` frame and `meta` (roles, diagnostics, design) and return
-#' a standardized, one‑row result. To add a new engine, implement
+#' a standardized, one-row result. To add a new engine, implement
 #' `engine_*()` with the same contract and register it in `.tidycomp_engines()`.
 
 #' Engine registry (internal)
 #'
 #' Return the named registry of available analysis engines.
-#' Keys are user‑facing engine names; values are the corresponding
+#' Keys are user-facing engine names; values are the corresponding
 #' engine functions.
 #'
 #' This is used by the dispatcher to resolve `strategy`/`engine`
@@ -28,8 +28,8 @@
 
 #' Welch two-sample t-test engine (internal)
 #'
-#' Perform a two‑sample Welch *t*‑test for a numeric outcome with two groups
-#' (unequal variances). Expects a standardized two‑column frame containing
+#' Perform a two-sample Welch *t*-test for a numeric outcome with two groups
+#' (unequal variances). Expects a standardized two-column frame containing
 #' the outcome and group specified in `meta$roles`.
 #'
 #' @param data A data frame containing at least the outcome and group columns.
@@ -41,7 +41,7 @@
 #' Computes the Welch test (i.e., unequal variances). Any preflight checks
 #' should be handled before calling the engine.
 #'
-#' @return A one‑row tibble (or list) with standardized fields such as:
+#' @return A one-row tibble (or list) with standardized fields such as:
 #'   `method`, `design`, `n`, `statistic`, `df`, `p.value`, `estimate`,
 #'   `conf.low`, `conf.high`, `metric`, and `notes`.
 #'
@@ -72,7 +72,7 @@ engine_welch_t <- function(data, meta) {
 
 #' Student (equal-variance) t-test engine (internal)
 #'
-#' Perform a two‑sample Student *t*‑test for a numeric outcome with two groups
+#' Perform a two-sample Student *t*-test for a numeric outcome with two groups
 #' (assumes equal variances / pooled SD).
 #'
 #' @param data A data frame containing at least the outcome and group columns.
@@ -80,10 +80,10 @@ engine_welch_t <- function(data, meta) {
 #'
 #' @details
 #' Assumes: numeric outcome, two groups (factor with 2 levels).
-#' Uses the pooled‑variance *t* test; use the Welch engine when variances
+#' Uses the pooled-variance *t* test; use the Welch engine when variances
 #' appear heterogeneous.
 #'
-#' @return A one‑row tibble (or list) with standardized result fields:
+#' @return A one-row tibble (or list) with standardized result fields:
 #'   `method`, `design`, `n`, `statistic`, `df`, `p.value`, `estimate`,
 #'   `conf.low`, `conf.high`, `metric`, and `notes`.
 #'
@@ -112,10 +112,10 @@ engine_student_t <- function(data, meta) {
   )
 }
 
-#' Mann–Whitney (Wilcoxon rank-sum) engine (internal)
+#' Mann-Whitney (Wilcoxon rank-sum) engine (internal)
 #'
-#' Perform a two‑group, distribution‑free comparison using the
-#' Mann–Whitney / Wilcoxon rank‑sum test. Useful when normality/variance
+#' Perform a two-group, distribution-free comparison using the
+#' Mann-Whitney / Wilcoxon rank-sum test. Useful when normality/variance
 #' assumptions are doubtful or the outcome is ordinal.
 #'
 #' @param data A data frame containing at least the outcome and group columns.
@@ -126,7 +126,7 @@ engine_student_t <- function(data, meta) {
 #' Reports a standardized result set; the primary `metric` reflects
 #' stochastic ordering (e.g., probability of superiority).
 #'
-#' @return A one‑row tibble (or list) with standardized result fields:
+#' @return A one-row tibble (or list) with standardized result fields:
 #'   `method`, `design`, `n`, `statistic`, `df` (may be `NA`), `p.value`,
 #'   `estimate` (may be `NA` for MVP), `conf.low`/`conf.high` (may be `NA`),
 #'   `metric`, and `notes`.
@@ -143,7 +143,7 @@ engine_mann_whitney <- function(data, meta) {
   # No CI for mean diff; we return median diff = NA here (MVP)
   tibble::tibble(
     test = "wilcox",
-    method = "Mann–Whitney U (Wilcoxon rank-sum)",
+    method = "Mann-Whitney U (Wilcoxon rank-sum)",
     engine = "mann_whitney",
     n = nrow(df),
     statistic = unname(fit$statistic),

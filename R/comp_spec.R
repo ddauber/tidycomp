@@ -1,8 +1,8 @@
 #' Create a comparison specification
 #'
-#' Initialize a *tidycomp* comparison specification. The returned object
-#' stores your raw data alongside analysis settings (roles, design, outcome
-#' type, strategy, engine), plus slots that later steps will fill
+#' Initialize a tidycomp comparison specification. The returned object
+#' stores your raw data alongside analysis settings (roles, design,
+#' outcome type, strategy, engine), plus slots that later steps will fill
 #' (prepared data, diagnostics, fitted results).
 #'
 #' @param data A data frame or tibble containing the dataset to analyze.
@@ -10,35 +10,36 @@
 #'
 #' @details
 #' A `comp_spec` is a lightweight container to coordinate a comparison
-#' workflow. It does **not** modify your data. Key fields include:
+#' workflow. It does not modify your data. Key fields include:
 #'
-#' - `data_raw`: the input data as a tibble.
-#' - `data_prepared`: populated by preprocessing steps.
-#' - `roles`: a named list for variable roles (e.g., outcome, group).
-#' - `design`: description of the comparison design (e.g., two_group).
-#' - `outcome_type`: expected outcome type (e.g., "numeric", "binary").
-#' - `strategy`: analysis strategy; defaults to `"auto"`.
-#' - `engine`: computation backend (if applicable).
-#' - `diagnostics`: results from diagnostic checks.
-#' - `fitted`: fitted model(s) or comparison result(s).
-#'
-#' Downstream helpers (e.g., role setters, strategy/config setters, fitters)
-#' enrich this object but are not required at creation.
+#' - `data_raw`: the input data as a tibble
+#' - `data_prepared`: populated by preparation steps
+#' - `roles`: a named list for variable roles (e.g., outcome, group)
+#' - `design`: comparison design (e.g., "independent")
+#' - `outcome_type`: expected outcome type (e.g., "numeric", "binary")
+#' - `strategy`: analysis strategy; defaults to "auto"
+#' - `engine`: computation backend (if applicable)
+#' - `diagnostics`: results from diagnostic checks
+#' - `fitted`: fitted model(s) or comparison result(s)
 #'
 #' @return An object of class `comp_spec`.
+#' @seealso [set_roles()], [set_design()], [set_outcome_type()],
+#'   [set_strategy()], [set_engine()], [diagnose()], [test()]
 #'
 #' @examples
-#' # minimal example
+#' # Minimal example
 #' spec <- comp_spec(mtcars)
 #' spec
 #'
-#' # access stored data
+#' # Access stored data
 #' head(spec$data_raw)
 #'
-#' # (illustrative) set roles and proceed in later steps:
-#' # spec <- spec |>
-#' #   set_roles(outcome = mpg, group = cyl) |>
-#' #   set_strategy("auto")
+#' # Illustrative next steps:
+#' # spec |>
+#' #   set_roles(outcome = mpg, group = am) |>
+#' #   set_design("independent") |>
+#' #   set_outcome_type("numeric") |>
+#' #   test()
 #'
 #' @export
 comp_spec <- function(data) {
@@ -63,6 +64,17 @@ comp_spec <- function(data) {
 }
 
 #' Set roles (outcome, group, id, weights)
+#'
+#' Capture and store variable roles on a `comp_spec`.
+#'
+#' @param spec A `comp_spec`.
+#' @param outcome,group,id,weights Tidy-eval columns defining roles.
+#'   `id` and `weights` are optional.
+#'
+#' @return The updated `comp_spec`.
+#' @examples
+#' spec <- comp_spec(mtcars)
+#' spec <- set_roles(spec, outcome = mpg, group = am)
 #' @export
 set_roles <- function(spec, outcome, group, id = NULL, weights = NULL) {
   stopifnot(inherits(spec, "comp_spec"))
@@ -85,7 +97,16 @@ set_roles <- function(spec, outcome, group, id = NULL, weights = NULL) {
 }
 
 #' Set design
+#'
+#' Define the comparison design on a `comp_spec`.
+#'
+#' @param spec A `comp_spec`.
 #' @param design One of "independent", "paired", "repeated", "factorial".
+#'
+#' @return The updated `comp_spec`.
+#' @examples
+#' spec <- comp_spec(mtcars)
+#' spec <- set_design(spec, "independent")
 #' @export
 set_design <- function(
   spec,
@@ -99,7 +120,16 @@ set_design <- function(
 }
 
 #' Set outcome type
+#'
+#' Declare the outcome type used by downstream engines and checks.
+#'
+#' @param spec A `comp_spec`.
 #' @param type One of "numeric", "binary", "ordered", "count".
+#'
+#' @return The updated `comp_spec`.
+#' @examples
+#' spec <- comp_spec(mtcars)
+#' spec <- set_outcome_type(spec, "numeric")
 #' @export
 set_outcome_type <- function(
   spec,
@@ -113,7 +143,16 @@ set_outcome_type <- function(
 }
 
 #' Set strategy (engine selection policy)
-#' @param strategy One of "auto","pragmatic","parametric","robust","permutation".
+#'
+#' Choose how the engine will be selected when running [test()].
+#'
+#' @param spec A `comp_spec`.
+#' @param strategy One of "auto", "pragmatic", "parametric", "robust", "permutation".
+#'
+#' @return The updated `comp_spec`.
+#' @examples
+#' spec <- comp_spec(mtcars)
+#' spec <- set_strategy(spec, "auto")
 #' @export
 set_strategy <- function(
   spec,
@@ -127,6 +166,18 @@ set_strategy <- function(
 }
 
 #' Force a specific engine
+#'
+#' Manually set the engine to use when running [test()]. Overrides the
+#' strategy-based selection.
+#'
+#' @param spec A `comp_spec`.
+#' @param engine Engine ID (e.g., "welch_t", "student_t", "mann_whitney").
+#'
+#' @return The updated `comp_spec`.
+#' @examples
+#' spec <- comp_spec(mtcars)
+#' spec <- set_roles(spec, mpg, am)
+#' spec <- set_engine(spec, "welch_t")
 #' @export
 set_engine <- function(spec, engine) {
   stopifnot(inherits(spec, "comp_spec"))
@@ -143,15 +194,12 @@ set_engine <- function(spec, engine) {
 
 #' @rdname comp_spec
 #' @method print comp_spec
-#' @export
-#'
 #' @param x A `comp_spec` object.
 #' @param ... Ignored; included for S3 compatibility.
-#'
 #' @examples
-#' # The print method provides a compact summary:
 #' spec <- comp_spec(mtcars)
 #' print(spec)
+#' @export
 print.comp_spec <- function(x, ...) {
   cat("<comp_spec>\n")
   cat(
@@ -163,16 +211,16 @@ print.comp_spec <- function(x, ...) {
     "\n",
     sep = ""
   )
-  cat("  design: ", x$design %||% "—", "\n", sep = "")
-  cat("  outcome_type: ", x$outcome_type %||% "—", "\n", sep = "")
-  cat("  strategy: ", x$strategy %||% "—", "\n", sep = "")
+  cat("  design: ", x$design %||% "-", "\n", sep = "")
+  cat("  outcome_type: ", x$outcome_type %||% "-", "\n", sep = "")
+  cat("  strategy: ", x$strategy %||% "-", "\n", sep = "")
   cat("  engine: ", x$engine %||% "auto", "\n", sep = "")
   invisible(x)
 }
 
 #' Internal fallback helper
 #'
-#' Returns `y` when `x` is `NULL`, otherwise returns `x`.
+#' Return `y` when `x` is `NULL`, otherwise return `x`.
 #'
 #' @keywords internal
 #' @noRd

@@ -6,6 +6,20 @@
 \usage{
 set_engine(spec, engine)
 }
+\arguments{
+\item{spec}{A \code{comp_spec}.}
+
+\item{engine}{Engine ID (e.g., "welch_t", "student_t", "mann_whitney").}
+}
+\value{
+The updated \code{comp_spec}.
+}
 \description{
-Force a specific engine
+Manually set the engine to use when running \code{\link[=test]{test()}}. Overrides the
+strategy-based selection.
+}
+\examples{
+spec <- comp_spec(mtcars)
+spec <- set_roles(spec, mpg, am)
+spec <- set_engine(spec, "welch_t")
 }

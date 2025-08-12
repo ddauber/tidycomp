@@ -22,6 +22,6 @@ report(x, ...)
 The input object, invisibly (after printing messages).
 }
 \description{
-Generic for printing a concise, human‑readable summary of results.
+Generic for printing a concise, human-readable summary of results.
 Methods emit messages via \strong{cli}.
 }
