@@ -33,12 +33,12 @@ set_roles <- function(spec, outcome, group, id = NULL, weights = NULL) {
   stopifnot(inherits(spec, "comp_spec"))
   out <- .capture_role(spec$data_raw, {{ outcome }})
   grp <- .capture_role(spec$data_raw, {{ group }})
-  idc <- if (!rlang::quo_is_missing(rlang::enquo(id))) {
+  idc <- if (!missing(id)) {
     .capture_role(spec$data_raw, {{ id }})
   } else {
     NULL
   }
-  wts <- if (!rlang::quo_is_missing(rlang::enquo(weights))) {
+  wts <- if (!missing(weights)) {
     .capture_role(spec$data_raw, {{ weights }})
   } else {
     NULL
@@ -111,7 +111,10 @@ print.comp_spec <- function(x, ...) {
   cat("<comp_spec>\n")
   cat(
     "  roles: ",
-    paste(names(compact(x$roles))[lengths(x$roles) > 0], collapse = ", "),
+    paste(
+      names(purrr::compact(x$roles))[lengths(x$roles) > 0],
+      collapse = ", "
+    ),
     "\n",
     sep = ""
   )

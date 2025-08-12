@@ -27,7 +27,7 @@ report.comp_spec <- function(x, ...) {
 report.comp_result <- function(x, ...) {
   cli::cli_inform("Test: {x$method} (engine = {x$engine})")
   cli::cli_inform(
-    "Estimate (mean diff): {round(x$estimate, 3)} [{round(x$conf.low,3)}, {round(x$conf.high,3)}]"
+    "Estimate (mean diff): {round(x$fitted$estimate, 3)} [{round(x$fitted$conf.low,3)}, {round(x$fitted$conf.high,3)}]"
   )
   if (!is.null(x$es_value)) {
     cli::cli_inform(

@@ -19,8 +19,11 @@
 #' @noRd
 .capture_role <- function(data, x) {
   q <- rlang::enquo(x)
+  if (rlang::quo_is_missing(q) || rlang::is_null(rlang::quo_get_expr(q))) {
+    cli::cli_abort("A valid, unquoted column name is required.")
+  }
   nm <- rlang::as_name(q)
-  if (!nzchar(nm) || rlang::quo_is_missing(q)) {
+  if (!nzchar(nm)) {
     cli::cli_abort("A valid, unquoted column name is required.")
   }
   if (!nm %in% names(data)) {
