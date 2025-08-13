@@ -78,7 +78,7 @@ test_that("report.comp_result() warns when notes are present", {
   testthat::local_reproducible_output()
 
   outliers_df <- tibble::tibble(
-    x = forcats::as_factor(c("A", "A", "A", "A", "B", "B", "B", "B", "B", "A")),
+    x = as.factor(c("A", "A", "A", "A", "B", "B", "B", "B", "B", "A")),
     y = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 100)
   )
 
