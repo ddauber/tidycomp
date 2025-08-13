@@ -73,12 +73,26 @@ effects <- function(spec, conf_level = 0.95, effect = "default") {
   }
 
   data <- spec$data_prepared %||% spec$data_raw
+  engine <- spec$fitted$engine %||% ""
+  multi_group_engines <- c(
+    "kruskal_wallis",
+    "anova_oneway_equal",
+    "anova_oneway_welch",
+    "anova_repeated",
+    "friedman"
+  )
   df <- if (identical(spec$design, "paired")) {
     .standardize_paired_numeric(
       data,
       spec$roles$outcome,
       spec$roles$group,
       spec$roles$id
+    )
+  } else if (engine %in% multi_group_engines) {
+    .standardize_multi_group_numeric(
+      data,
+      spec$roles$outcome,
+      spec$roles$group
     )
   } else {
     .standardize_two_group_numeric(
@@ -87,8 +101,6 @@ effects <- function(spec, conf_level = 0.95, effect = "default") {
       spec$roles$group
     )
   }
-
-  engine <- spec$fitted$engine %||% ""
   effect <- match.arg(effect, c("default", "cohens_d"))
   es <- switch(
     engine,

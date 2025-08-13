@@ -137,6 +137,19 @@ test_that("effects() defaults to Hedges g for unknown engine (with warning)", {
   expect_type(out$fitted$es_conf_high, "double")
 })
 
+# Multi-group engines are standardised correctly ----
+test_that("effects() standardizes data for multi-group engines", {
+  out <- comp_spec(iris) |>
+    set_roles(outcome = Sepal.Length, group = Species) |>
+    set_design("independent") |>
+    set_outcome_type("numeric") |>
+    set_engine("kruskal_wallis") |>
+    test() |>
+    effects(conf_level = 0.90)
+
+  expect_type(out$fitted$es_value, "double")
+})
+
 # When effectsize package is not available ----
 test_that("effects() warns and returns input when effectsize is absent", {
   testthat::local_mocked_bindings(
