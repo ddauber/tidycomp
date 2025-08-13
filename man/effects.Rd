@@ -33,6 +33,8 @@ numeric outcome based on the inferential engine stored in
 \item \code{"welch_t"}: Hedges' \emph{g} (default) or Cohen's \emph{d} when
 \code{effect = "cohens_d"}
 \item \code{"mann_whitney"}: Wilcoxon \emph{r} (rank biserial)
+\item \code{"paired_t"}: Cohen's \emph{d} for paired samples
+\item \code{"wilcoxon_signed_rank"}: Wilcoxon \emph{r} (rank biserial)
 }
 
 The function reads from \code{spec$fitted} and writes \code{es_value},

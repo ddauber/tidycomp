@@ -1,3 +1,8 @@
+# tidycomp 0.2.0
+
+* Added paired 2-group comparisons: `engine_paired_t` and `engine_wilcoxon_signed_rank`.
+* Amended tests to account for new paired engines.
+
 # tidycomp 0.1.1
 
 * Added unit tests for all functions.

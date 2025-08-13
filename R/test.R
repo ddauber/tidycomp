@@ -5,12 +5,12 @@
 #' and, when available, `spec$diagnostics`.
 #'
 #' @param spec A `comp_spec` created by [comp_spec()] with roles set via
-#'   `set_roles(outcome, group)`, `design = "independent"`, and
+#'   `set_roles(outcome, group)`, `design = "independent"` or `"paired"`, and
 #'   `outcome_type = "numeric"`. Optionally, run [diagnose()] beforehand.
 #'
 #' @details
 #' **Scope (MVP):**
-#' - Design: `design = "independent"` only.
+#' - Design: `design = "independent"` or `"paired"`.
 #' - Outcome: `outcome_type = "numeric"` only.
 #'
 #' **Engine selection (defaults if `spec$engine` is `NULL`):**
@@ -52,9 +52,14 @@ test <- function(spec) {
       "Set roles with `set_roles(outcome, group)` before `test()`."
     )
   }
-  if (is.null(spec$design) || spec$design != "independent") {
+  if (is.null(spec$design) || !spec$design %in% c("independent", "paired")) {
     cli::cli_abort(
-      "MVP `test()` currently supports `design = 'independent'` only."
+      "MVP `test()` currently supports `design = 'independent'` or 'paired'."
+    )
+  }
+  if (spec$design == "paired" && is.null(spec$roles$id)) {
+    cli::cli_abort(
+      "Paired design requires an id role via `set_roles(id = ...)`."
     )
   }
   if (is.null(spec$outcome_type) || spec$outcome_type != "numeric") {
@@ -69,24 +74,36 @@ test <- function(spec) {
   # engine choice
   engine <- spec$engine
   if (is.null(engine)) {
-    engine <- switch(
-      spec$strategy,
-      auto = "welch_t",
-      pragmatic = "welch_t",
-      parametric = "student_t",
-      robust = "welch_t",
-      permutation = "welch_t",
-      "welch_t"
-    )
-    # gentle nudge to MW when severe normality + small n
-    diag <- spec$diagnostics
-    if (!is.null(diag)) {
-      small_n <- any((diag$group_sizes$n) < 15)
-      nonnorm <- any(diag$normality$p_shapiro < 0.01, na.rm = TRUE)
-      if (small_n && nonnorm) {
-        cli::cli_warn(
-          "Severe non-normality with very small n detected; consider `set_engine('mann_whitney')`."
-        )
+    if (spec$design == "paired") {
+      engine <- switch(
+        spec$strategy,
+        auto = "paired_t",
+        pragmatic = "paired_t",
+        parametric = "paired_t",
+        robust = "paired_t",
+        permutation = "paired_t",
+        "paired_t"
+      )
+    } else {
+      engine <- switch(
+        spec$strategy,
+        auto = "welch_t",
+        pragmatic = "welch_t",
+        parametric = "student_t",
+        robust = "welch_t",
+        permutation = "welch_t",
+        "welch_t"
+      )
+      # gentle nudge to MW when severe normality + small n
+      diag <- spec$diagnostics
+      if (!is.null(diag)) {
+        small_n <- any((diag$group_sizes$n) < 15)
+        nonnorm <- any(diag$normality$p_shapiro < 0.01, na.rm = TRUE)
+        if (small_n && nonnorm) {
+          cli::cli_warn(
+            "Severe non-normality with very small n detected; consider `set_engine('mann_whitney')`."
+          )
+        }
       }
     }
   }

@@ -82,6 +82,116 @@ test_that(".standardize_two_group_numeric validates input types", {
 })
 
 # -----------------------------------------------------------------------------
+# .standardize_paired_numeric()
+# -----------------------------------------------------------------------------
+
+test_that(".standardize_paired_numeric returns wide tibble", {
+  data <- tibble::tibble(
+    id = rep(1:3, each = 2),
+    g = factor(rep(c("A", "B"), times = 3)),
+    y = c(1, 2, 3, 4, 5, 6)
+  )
+  res <- tidycomp:::.standardize_paired_numeric(data, "y", "g", "id")
+  expect_s3_class(res, "tbl_df")
+  expect_equal(ncol(res), 2)
+})
+
+test_that(".standardize_paired_numeric validates pairing", {
+  data_bad <- tibble::tibble(
+    id = c(1, 1, 2),
+    g = factor(c("A", "A", "B")),
+    y = 1:3
+  )
+  expect_error(
+    tidycomp:::.standardize_paired_numeric(data_bad, "y", "g", "id"),
+    "Each id must appear exactly twice"
+  )
+})
+
+test_that(".standardize_paired_numeric validates numeric outcome", {
+  data_bad <- tibble::tibble(
+    id = rep(1:3, each = 2),
+    g = factor(rep(c("A", "B"), times = 3)),
+    y = letters[1:6] # character instead of numeric
+  )
+  expect_error(
+    tidycomp:::.standardize_paired_numeric(data_bad, "y", "g", "id"),
+    "Outcome must be numeric for the current engine"
+  )
+})
+
+test_that(".standardize_paired_numeric validates id is provided", {
+  data <- tibble::tibble(
+    g = factor(rep(c("A", "B"), times = 3)),
+    y = 1:6
+  )
+  expect_error(
+    tidycomp:::.standardize_paired_numeric(data, "y", "g", NULL),
+    "Paired design requires an `id` role"
+  )
+})
+
+test_that(".standardize_paired_numeric validates group has exactly 2 levels", {
+  # Test with 1 level
+  data_one_level <- tibble::tibble(
+    id = rep(1:3, each = 2),
+    g = factor(rep("A", times = 6)),
+    y = 1:6
+  )
+  expect_error(
+    tidycomp:::.standardize_paired_numeric(data_one_level, "y", "g", "id"),
+    "Group must have exactly 2 levels for this engine"
+  )
+
+  # Test with 3 levels
+  data_three_levels <- tibble::tibble(
+    id = rep(1:3, each = 2),
+    g = factor(rep(c("A", "B", "C"), times = 2)),
+    y = 1:6
+  )
+  expect_error(
+    tidycomp:::.standardize_paired_numeric(data_three_levels, "y", "g", "id"),
+    "Group must have exactly 2 levels for this engine"
+  )
+})
+
+test_that(".standardize_paired_numeric validates each id has one observation per group", {
+  data_bad <- tibble::tibble(
+    id = c(1, 1, 2, 2), # Each id appears exactly twice
+    g = factor(c("A", "B", "A", "A")), # But id=2 has 2 A's and 0 B's
+    y = 1:4
+  )
+  expect_error(
+    tidycomp:::.standardize_paired_numeric(data_bad, "y", "g", "id"),
+    "Each id must have one observation for each group"
+  )
+})
+
+test_that(".standardize_paired_numeric validates no missing outcomes", {
+  data_missing <- tibble::tibble(
+    id = rep(1:3, each = 2),
+    g = factor(rep(c("A", "B"), times = 3)),
+    y = c(1, 2, NA, 4, 5, 6) # missing value for id=2, group=A
+  )
+  expect_error(
+    tidycomp:::.standardize_paired_numeric(data_missing, "y", "g", "id"),
+    "Missing outcomes for at least one id"
+  )
+})
+
+test_that(".standardize_paired_numeric converts non-factor group to factor", {
+  data_char_group <- tibble::tibble(
+    id = rep(1:3, each = 2),
+    g = rep(c("A", "B"), times = 3), # character, not factor
+    y = 1:6
+  )
+  # This should not error - it should convert to factor
+  res <- tidycomp:::.standardize_paired_numeric(data_char_group, "y", "g", "id")
+  expect_s3_class(res, "tbl_df")
+  expect_equal(ncol(res), 2)
+})
+
+# -----------------------------------------------------------------------------
 # .flag_outliers()
 # -----------------------------------------------------------------------------
 

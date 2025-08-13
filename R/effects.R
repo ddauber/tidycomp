@@ -8,6 +8,8 @@
 #' - `"welch_t"`: Hedges' *g* (default) or Cohen's *d* when
 #'   `effect = "cohens_d"`
 #' - `"mann_whitney"`: Wilcoxon *r* (rank biserial)
+#' - `"paired_t"`: Cohen's *d* for paired samples
+#' - `"wilcoxon_signed_rank"`: Wilcoxon *r* (rank biserial)
 #'
 #' The function reads from `spec$fitted` and writes `es_value`,
 #' `es_conf_low`, `es_conf_high`, and `es_metric` before returning `spec`.
@@ -71,11 +73,20 @@ effects <- function(spec, conf_level = 0.95, effect = "default") {
   }
 
   data <- spec$data_prepared %||% spec$data_raw
-  df <- .standardize_two_group_numeric(
-    data,
-    spec$roles$outcome,
-    spec$roles$group
-  )
+  df <- if (identical(spec$design, "paired")) {
+    .standardize_paired_numeric(
+      data,
+      spec$roles$outcome,
+      spec$roles$group,
+      spec$roles$id
+    )
+  } else {
+    .standardize_two_group_numeric(
+      data,
+      spec$roles$outcome,
+      spec$roles$group
+    )
+  }
 
   engine <- spec$fitted$engine %||% ""
   effect <- match.arg(effect, c("default", "cohens_d"))
@@ -127,6 +138,37 @@ effects <- function(spec, conf_level = 0.95, effect = "default") {
       out <- effectsize::rank_biserial(
         outcome ~ group,
         data = df,
+        ci = conf_level
+      )
+      list(
+        value = out$r_rank_biserial,
+        low = out$CI_low,
+        high = out$CI_high,
+        metric = "r_Wilcoxon"
+      )
+    },
+    paired_t = {
+      g <- names(df)
+      out <- effectsize::cohens_d(
+        df[[g[2]]],
+        df[[g[1]]],
+        paired = TRUE,
+        ci = conf_level,
+        hedges.correction = FALSE
+      )
+      list(
+        value = out$Cohens_d,
+        low = out$CI_low,
+        high = out$CI_high,
+        metric = "Cohens_d"
+      )
+    },
+    wilcoxon_signed_rank = {
+      g <- names(df)
+      out <- effectsize::rank_biserial(
+        df[[g[2]]],
+        df[[g[1]]],
+        paired = TRUE,
         ci = conf_level
       )
       list(

@@ -8,7 +8,7 @@ test(spec)
 }
 \arguments{
 \item{spec}{A \code{comp_spec} created by \code{\link[=comp_spec]{comp_spec()}} with roles set via
-\code{set_roles(outcome, group)}, \code{design = "independent"}, and
+\code{set_roles(outcome, group)}, \code{design = "independent"} or \code{"paired"}, and
 \code{outcome_type = "numeric"}. Optionally, run \code{\link[=diagnose]{diagnose()}} beforehand.}
 }
 \value{
@@ -22,7 +22,7 @@ and, when available, \code{spec$diagnostics}.
 \details{
 \strong{Scope (MVP):}
 \itemize{
-\item Design: \code{design = "independent"} only.
+\item Design: \code{design = "independent"} or \code{"paired"}.
 \item Outcome: \code{outcome_type = "numeric"} only.
 }
 
