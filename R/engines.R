@@ -25,7 +25,8 @@
     mann_whitney = engine_mann_whitney,
     paired_t = engine_paired_t,
     wilcoxon_signed_rank = engine_wilcoxon_signed_rank,
-    anova_oneway = engine_anova_oneway,
+    anova_oneway_equal = engine_anova_oneway_equal,
+    anova_oneway_welch = engine_anova_oneway_welch,
     kruskal_wallis = engine_kruskal_wallis,
     anova_repeated = engine_anova_repeated,
     friedman = engine_friedman
@@ -290,32 +291,64 @@ engine_wilcoxon_signed_rank <- function(data, meta) {
   )
 }
 
-#' One-way ANOVA engine (internal)
+#' One-way ANOVA engine assuming equal variances (internal)
 #'
-#' Perform a one-way ANOVA for a numeric outcome across three or more
-#' independent groups.
+#' Perform a classic one-way ANOVA for a numeric outcome across three or more
+#' independent groups, assuming equal group variances.
 #'
 #' @param data A data frame containing outcome and group columns.
 #' @param meta A list with roles/diagnostics metadata.
 #' @keywords internal
 #' @noRd
-engine_anova_oneway <- function(data, meta) {
+engine_anova_oneway_equal <- function(data, meta) {
   df <- .standardize_multi_group_numeric(
     data,
     meta$roles$outcome,
     meta$roles$group
   )
-  fit <- stats::aov(outcome ~ group, data = df)
-  an <- summary(fit)[[1]]
+  fit <- stats::oneway.test(outcome ~ group, data = df, var.equal = TRUE)
   tibble::tibble(
     test = "anova",
     method = "One-way ANOVA",
-    engine = "anova_oneway",
+    engine = "anova_oneway_equal",
     n = nrow(df),
-    statistic = unname(an["group", "F value"]),
-    df1 = unname(an["group", "Df"]),
-    df2 = unname(an["Residuals", "Df"]),
-    p.value = unname(an["group", "Pr(>F)"]),
+    statistic = unname(fit$statistic),
+    df1 = unname(fit$parameter[1]),
+    df2 = unname(fit$parameter[2]),
+    p.value = unname(fit$p.value),
+    estimate = NA_real_,
+    conf.low = NA_real_,
+    conf.high = NA_real_,
+    metric = NA_character_,
+    notes = list(meta$diagnostics$notes %||% character())
+  )
+}
+
+#' Welch's one-way ANOVA engine (internal)
+#'
+#' Perform Welch's one-way ANOVA for a numeric outcome across three or more
+#' independent groups, allowing for unequal group variances.
+#'
+#' @param data A data frame containing outcome and group columns.
+#' @param meta A list with roles/diagnostics metadata.
+#' @keywords internal
+#' @noRd
+engine_anova_oneway_welch <- function(data, meta) {
+  df <- .standardize_multi_group_numeric(
+    data,
+    meta$roles$outcome,
+    meta$roles$group
+  )
+  fit <- stats::oneway.test(outcome ~ group, data = df, var.equal = FALSE)
+  tibble::tibble(
+    test = "anova",
+    method = "Welch's ANOVA",
+    engine = "anova_oneway_welch",
+    n = nrow(df),
+    statistic = unname(fit$statistic),
+    df1 = unname(fit$parameter[1]),
+    df2 = unname(fit$parameter[2]),
+    p.value = unname(fit$p.value),
     estimate = NA_real_,
     conf.low = NA_real_,
     conf.high = NA_real_,

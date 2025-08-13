@@ -11,7 +11,6 @@ result <- list(
   estimate = 1,
   conf.low = 0.5,
   conf.high = 1.5,
-  fitted = list(estimate = 1, conf.low = 0.5, conf.high = 1.5),
   notes = list(character())
 )
 class(result) <- c("comp_result", "list")

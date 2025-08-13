@@ -105,12 +105,12 @@ test <- function(spec) {
       if (g_levels > 2) {
         engine <- switch(
           spec$strategy,
-          auto = "anova_oneway",
-          pragmatic = "anova_oneway",
-          parametric = "anova_oneway",
-          robust = "anova_oneway",
-          permutation = "anova_oneway",
-          "anova_oneway"
+          auto = "anova_oneway_welch",
+          pragmatic = "anova_oneway_welch",
+          parametric = "anova_oneway_equal",
+          robust = "anova_oneway_welch",
+          permutation = "anova_oneway_welch",
+          "anova_oneway_welch"
         )
         diag <- spec$diagnostics
         if (!is.null(diag)) {
