@@ -9,7 +9,7 @@ test_that("diagnose attaches diagnostics with expected structure", {
 
   expect_named(
     spec$diagnostics,
-    c("group_sizes", "normality", "var_bf_p", "notes")
+    c("group_sizes", "normality", "var_bf_p", "sphericity_p", "notes")
   )
   expect_s3_class(spec$diagnostics$group_sizes, "tbl_df")
   expect_s3_class(spec$diagnostics$normality, "tbl_df")
@@ -71,4 +71,18 @@ test_that("diagnose errors with different non-numeric outcome types", {
     "`diagnose\\(\\)` currently supports numeric outcomes\\.",
     class = "rlang_error"
   )
+})
+
+test_that("diagnose computes sphericity p-value for repeated design", {
+  df <- tibble::tibble(
+    id = rep(1:4, each = 3),
+    group = factor(rep(c("A", "B", "C"), times = 4)),
+    outcome = rnorm(12)
+  )
+  spec <- comp_spec(df) |>
+    set_roles(outcome = outcome, group = group, id = id) |>
+    set_design("repeated") |>
+    set_outcome_type("numeric")
+  spec <- diagnose(spec)
+  expect_true("sphericity_p" %in% names(spec$diagnostics))
 })

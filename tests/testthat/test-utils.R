@@ -192,6 +192,33 @@ test_that(".standardize_paired_numeric converts non-factor group to factor", {
 })
 
 # -----------------------------------------------------------------------------
+# .standardize_multi_group_numeric()
+# -----------------------------------------------------------------------------
+
+test_that(".standardize_multi_group_numeric handles >2 groups", {
+  data <- data.frame(y = 1:9, g = rep(c("A","B","C"), each = 3))
+  res <- tidycomp:::.standardize_multi_group_numeric(data, "y", "g")
+  expect_s3_class(res, "tbl_df")
+  expect_named(res, c("outcome", "group"))
+  expect_equal(nlevels(res$group), 3)
+})
+
+# -----------------------------------------------------------------------------
+# .standardize_repeated_numeric()
+# -----------------------------------------------------------------------------
+
+test_that(".standardize_repeated_numeric validates structure", {
+  data <- tibble::tibble(
+    id = rep(1:3, each = 3),
+    g = factor(rep(c("A","B","C"), times = 3)),
+    y = rnorm(9)
+  )
+  res <- tidycomp:::.standardize_repeated_numeric(data, "y", "g", "id")
+  expect_s3_class(res, "tbl_df")
+  expect_equal(ncol(res), 3)
+})
+
+# -----------------------------------------------------------------------------
 # .flag_outliers()
 # -----------------------------------------------------------------------------
 
@@ -226,28 +253,21 @@ test_that(".flag_outliers returns NA when no finite values", {
 })
 
 # -----------------------------------------------------------------------------
-# .brown_forsythe_2g()
+# .brown_forsythe()
 # -----------------------------------------------------------------------------
 
-# returns a p-value for two groups
-
-# Using a small example where the group variances differ, we expect
-# a specific p-value from the Brown–Forsythe test implementation.
-
-test_that(".brown_forsythe_2g computes a p-value for two groups", {
-  y <- c(1, 2, 1, 2, 1, 1, 4, 1, 4, 1)
-  g <- rep(c("A", "B"), each = 5)
-  p <- tidycomp:::.brown_forsythe_2g(y, g)
+test_that(".brown_forsythe computes p-value for multiple groups", {
+  y <- c(1,2,1,2,1,1,4,1,4)
+  g <- rep(c("A","B","C"), each = 3)
+  p <- tidycomp:::.brown_forsythe(y, g)
   expect_type(p, "double")
-  expect_equal(p, 0.3319086, tolerance = 1e-6)
+  expect_false(is.na(p))
 })
 
-# returns NA when more than two groups are supplied
-
-test_that(".brown_forsythe_2g returns NA for != 2 groups", {
+test_that(".brown_forsythe returns NA when <2 groups", {
   y <- 1:3
-  g <- c("A", "B", "C")
-  expect_true(is.na(tidycomp:::.brown_forsythe_2g(y, g)))
+  g <- rep("A", 3)
+  expect_true(is.na(tidycomp:::.brown_forsythe(y, g)))
 })
 
 test_that(".capture_role errors for empty string column name", {

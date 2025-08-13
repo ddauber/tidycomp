@@ -24,7 +24,11 @@
     student_t = engine_student_t,
     mann_whitney = engine_mann_whitney,
     paired_t = engine_paired_t,
-    wilcoxon_signed_rank = engine_wilcoxon_signed_rank
+    wilcoxon_signed_rank = engine_wilcoxon_signed_rank,
+    anova_oneway = engine_anova_oneway,
+    kruskal_wallis = engine_kruskal_wallis,
+    anova_repeated = engine_anova_repeated,
+    friedman = engine_friedman
   )
 }
 
@@ -283,5 +287,141 @@ engine_wilcoxon_signed_rank <- function(data, meta) {
         character()
       }
     ))
+  )
+}
+
+#' One-way ANOVA engine (internal)
+#'
+#' Perform a one-way ANOVA for a numeric outcome across three or more
+#' independent groups.
+#'
+#' @param data A data frame containing outcome and group columns.
+#' @param meta A list with roles/diagnostics metadata.
+#' @keywords internal
+#' @noRd
+engine_anova_oneway <- function(data, meta) {
+  df <- .standardize_multi_group_numeric(
+    data,
+    meta$roles$outcome,
+    meta$roles$group
+  )
+  fit <- stats::aov(outcome ~ group, data = df)
+  an <- summary(fit)[[1]]
+  tibble::tibble(
+    test = "anova",
+    method = "One-way ANOVA",
+    engine = "anova_oneway",
+    n = nrow(df),
+    statistic = unname(an["group", "F value"]),
+    df1 = unname(an["group", "Df"]),
+    df2 = unname(an["Residuals", "Df"]),
+    p.value = unname(an["group", "Pr(>F)"]),
+    estimate = NA_real_,
+    conf.low = NA_real_,
+    conf.high = NA_real_,
+    metric = NA_character_,
+    notes = list(meta$diagnostics$notes %||% character())
+  )
+}
+
+#' Kruskal-Wallis engine (internal)
+#'
+#' Perform a Kruskal-Wallis rank-sum test for a numeric outcome across
+#' three or more independent groups.
+#'
+#' @param data A data frame containing outcome and group columns.
+#' @param meta A list with roles/diagnostics metadata.
+#' @keywords internal
+#' @noRd
+engine_kruskal_wallis <- function(data, meta) {
+  df <- .standardize_multi_group_numeric(
+    data,
+    meta$roles$outcome,
+    meta$roles$group
+  )
+  fit <- stats::kruskal.test(outcome ~ group, data = df)
+  tibble::tibble(
+    test = "kruskal_wallis",
+    method = "Kruskal-Wallis rank sum test",
+    engine = "kruskal_wallis",
+    n = nrow(df),
+    statistic = unname(fit$statistic),
+    df1 = unname(fit$parameter),
+    df2 = NA_real_,
+    p.value = unname(fit$p.value),
+    estimate = NA_real_,
+    conf.low = NA_real_,
+    conf.high = NA_real_,
+    metric = NA_character_,
+    notes = list(meta$diagnostics$notes %||% character())
+  )
+}
+
+#' Repeated-measures ANOVA engine (internal)
+#'
+#' Perform a one-factor repeated-measures ANOVA for a numeric outcome
+#' measured on the same subjects across multiple conditions.
+#'
+#' @param data A data frame containing outcome, group, and id columns.
+#' @param meta A list with roles/diagnostics metadata.
+#' @keywords internal
+#' @noRd
+engine_anova_repeated <- function(data, meta) {
+  df <- .standardize_repeated_numeric(
+    data,
+    meta$roles$outcome,
+    meta$roles$group,
+    meta$roles$id
+  )
+  fit <- stats::aov(outcome ~ group + Error(id/group), data = df)
+  summ <- summary(fit)
+  within <- summ[["Error: Within"]][[1]]
+  tibble::tibble(
+    test = "anova_repeated",
+    method = "Repeated measures ANOVA",
+    engine = "anova_repeated",
+    n = nrow(df),
+    statistic = unname(within["group", "F value"]),
+    df1 = unname(within["group", "Df"]),
+    df2 = unname(within["Residuals", "Df"]),
+    p.value = unname(within["group", "Pr(>F)"]),
+    estimate = NA_real_,
+    conf.low = NA_real_,
+    conf.high = NA_real_,
+    metric = NA_character_,
+    notes = list(meta$diagnostics$notes %||% character())
+  )
+}
+
+#' Friedman test engine (internal)
+#'
+#' Perform a Friedman rank-sum test for repeated-measures designs.
+#'
+#' @param data A data frame containing outcome, group, and id columns.
+#' @param meta A list with roles/diagnostics metadata.
+#' @keywords internal
+#' @noRd
+engine_friedman <- function(data, meta) {
+  df <- .standardize_repeated_numeric(
+    data,
+    meta$roles$outcome,
+    meta$roles$group,
+    meta$roles$id
+  )
+  fit <- stats::friedman.test(outcome ~ group | id, data = df)
+  tibble::tibble(
+    test = "friedman",
+    method = "Friedman rank sum test",
+    engine = "friedman",
+    n = nrow(df),
+    statistic = unname(fit$statistic),
+    df1 = unname(fit$parameter),
+    df2 = NA_real_,
+    p.value = unname(fit$p.value),
+    estimate = NA_real_,
+    conf.low = NA_real_,
+    conf.high = NA_real_,
+    metric = NA_character_,
+    notes = list(meta$diagnostics$notes %||% character())
   )
 }

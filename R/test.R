@@ -52,14 +52,14 @@ test <- function(spec) {
       "Set roles with `set_roles(outcome, group)` before `test()`."
     )
   }
-  if (is.null(spec$design) || !spec$design %in% c("independent", "paired")) {
+  if (is.null(spec$design) || !spec$design %in% c("independent", "paired", "repeated")) {
     cli::cli_abort(
-      "MVP `test()` currently supports `design = 'independent'` or 'paired'."
+      "MVP `test()` currently supports `design = 'independent'`, 'paired', or 'repeated'."
     )
   }
-  if (spec$design == "paired" && is.null(spec$roles$id)) {
+  if (spec$design %in% c("paired", "repeated") && is.null(spec$roles$id)) {
     cli::cli_abort(
-      "Paired design requires an id role via `set_roles(id = ...)`."
+      "Paired or repeated designs require an id role via `set_roles(id = ...)`."
     )
   }
   if (is.null(spec$outcome_type) || spec$outcome_type != "numeric") {
@@ -74,6 +74,7 @@ test <- function(spec) {
   # engine choice
   engine <- spec$engine
   if (is.null(engine)) {
+    g_levels <- if (!is.null(spec$roles$group)) nlevels(factor(data[[spec$roles$group]])) else 0
     if (spec$design == "paired") {
       engine <- switch(
         spec$strategy,
@@ -84,25 +85,62 @@ test <- function(spec) {
         permutation = "paired_t",
         "paired_t"
       )
-    } else {
+    } else if (spec$design == "repeated") {
       engine <- switch(
         spec$strategy,
-        auto = "welch_t",
-        pragmatic = "welch_t",
-        parametric = "student_t",
-        robust = "welch_t",
-        permutation = "welch_t",
-        "welch_t"
+        auto = "anova_repeated",
+        pragmatic = "anova_repeated",
+        parametric = "anova_repeated",
+        robust = "anova_repeated",
+        permutation = "anova_repeated",
+        "anova_repeated"
       )
-      # gentle nudge to MW when severe normality + small n
       diag <- spec$diagnostics
-      if (!is.null(diag)) {
-        small_n <- any((diag$group_sizes$n) < 15)
-        nonnorm <- any(diag$normality$p_shapiro < 0.01, na.rm = TRUE)
-        if (small_n && nonnorm) {
-          cli::cli_warn(
-            "Severe non-normality with very small n detected; consider `set_engine('mann_whitney')`."
-          )
+      if (!is.null(diag) && is.finite(diag$sphericity_p) && !is.na(diag$sphericity_p) && diag$sphericity_p < 0.05) {
+        cli::cli_warn(
+          "Sphericity violation detected; consider `set_engine('friedman')`."
+        )
+      }
+    } else {
+      if (g_levels > 2) {
+        engine <- switch(
+          spec$strategy,
+          auto = "anova_oneway",
+          pragmatic = "anova_oneway",
+          parametric = "anova_oneway",
+          robust = "anova_oneway",
+          permutation = "anova_oneway",
+          "anova_oneway"
+        )
+        diag <- spec$diagnostics
+        if (!is.null(diag)) {
+          small_n <- any((diag$group_sizes$n) < 15)
+          nonnorm <- any(diag$normality$p_shapiro < 0.01, na.rm = TRUE)
+          if (small_n && nonnorm) {
+            cli::cli_warn(
+              "Severe non-normality with very small n detected; consider `set_engine('kruskal_wallis')`."
+            )
+          }
+        }
+      } else {
+        engine <- switch(
+          spec$strategy,
+          auto = "welch_t",
+          pragmatic = "welch_t",
+          parametric = "student_t",
+          robust = "welch_t",
+          permutation = "welch_t",
+          "welch_t"
+        )
+        diag <- spec$diagnostics
+        if (!is.null(diag)) {
+          small_n <- any((diag$group_sizes$n) < 15)
+          nonnorm <- any(diag$normality$p_shapiro < 0.01, na.rm = TRUE)
+          if (small_n && nonnorm) {
+            cli::cli_warn(
+              "Severe non-normality with very small n detected; consider `set_engine('mann_whitney')`."
+            )
+          }
         }
       }
     }
