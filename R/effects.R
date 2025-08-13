@@ -62,8 +62,11 @@ effects <- function(spec, conf_level = 0.95, effect = "default") {
   if (is.null(spec$fitted)) {
     cli::cli_abort("Run `test()` before `effects()`.")
   }
-  if (!requireNamespace("effectsize", quietly = TRUE)) {
-    cli::cli_warn("Package {effectsize} not installed; skipping effect size.")
+  if (!.has_effectsize()) {
+    cli::cli_warn(
+      "Package {.pkg effectsize} not installed; skipping effect size.",
+      pkg = "effectsize"
+    )
     return(spec)
   }
 

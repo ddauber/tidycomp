@@ -1,3 +1,9 @@
+# tidycomp 0.1.1
+
+* Added unit tests for all functions.
+* Added `covr` and corresponding github action.
+* `README.md` has been updated to include covr badge.
+
 # tidycomp 0.1.0
 
 * Package supports unpaird 2-group comparisons using: student's t-test,

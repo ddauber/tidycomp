@@ -6,3 +6,5 @@
 .*[.]html$
 
 ^manual_testing$
+^codecov\.yml$
+^\.github$

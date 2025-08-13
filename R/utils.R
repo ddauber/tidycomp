@@ -134,3 +134,25 @@
   res <- stats::t.test(z1, z2, var.equal = TRUE)
   res$p.value
 }
+
+
+#' Check if the `effectsize` package is installed
+#'
+#' This internal helper is used to determine whether the \pkg{effectsize}
+#' package is available in the current R session. It wraps
+#' [base::requireNamespace()] with `quietly = TRUE` and returns `TRUE`
+#' if the package can be loaded, `FALSE` otherwise.
+#'
+#' This wrapper is useful for testing purposes as well.
+#'
+#' @return A logical scalar:
+#'   * `TRUE` if the \pkg{effectsize} package is installed and loadable.
+#'   * `FALSE` if it is not installed.
+#'
+#' @examples
+#' tidycomp:::.has_effectsize()
+#'
+#' @keywords internal
+.has_effectsize <- function() {
+  requireNamespace("effectsize", quietly = TRUE)
+}

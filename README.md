@@ -7,7 +7,8 @@
 
 [![Lifecycle:
 experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html#experimental)
-
+[![Codecov test
+coverage](https://codecov.io/gh/ddauber/tidycomp/graph/badge.svg)](https://app.codecov.io/gh/ddauber/tidycomp)
 <!-- badges: end -->
 
 **tidycomp** is a small, composable grammar for **group comparisons** in

@@ -50,13 +50,13 @@ report.comp_result <- function(x, ...) {
   cli::cli_inform(
     "Estimate (mean diff): {round(x$fitted$estimate, 3)} [{round(x$fitted$conf.low,3)}, {round(x$fitted$conf.high,3)}]"
   )
-  if (!is.null(x$es_value)) {
+  if (!is.null(x$fitted$es_value)) {
     cli::cli_inform(
-      "Effect size: {x$es_metric} = {round(x$es_value, 3)} [{round(x$es_conf_low,3)}, {round(x$es_conf_high,3)}]"
+      "Effect size: {x$fitted$es_metric} = {round(x$fitted$es_value, 3)} [{round(x$fitted$es_conf_low,3)}, {round(x$fitted$es_conf_high,3)}]"
     )
   }
-  if (length(x$notes[[1]]) > 0) {
-    cli::cli_warn("Notes: {paste(x$notes[[1]], collapse = ' | ')}")
+  if (length(x$fitted$notes[[1]]) > 0) {
+    cli::cli_warn("Notes: {paste(x$fitted$notes[[1]], collapse = ' | ')}")
   }
   invisible(x)
 }
