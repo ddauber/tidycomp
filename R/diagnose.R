@@ -123,14 +123,22 @@ diagnose <- function(spec) {
     id <- roles$id
     .validate_cols(df, id)
     wide <- tryCatch(
-      reshape(df[, c(id, group, outcome)], idvar = id, timevar = group, direction = "wide"),
+      stats::reshape(
+        df[, c(id, group, outcome)],
+        idvar = id,
+        timevar = group,
+        direction = "wide"
+      ),
       error = function(e) NULL
     )
     if (!is.null(wide)) {
       mat <- as.matrix(wide[, setdiff(names(wide), id), drop = FALSE])
       fit <- tryCatch(stats::lm(mat ~ 1), error = function(e) NULL)
       if (!is.null(fit)) {
-        p_mauchly <- tryCatch(stats::mauchly.test(fit)$p.value, error = function(e) NA_real_)
+        p_mauchly <- tryCatch(
+          stats::mauchly.test(fit)$p.value,
+          error = function(e) NA_real_
+        )
         if (is.finite(p_mauchly) && p_mauchly < 0.05) {
           notes <- c(notes, "Sphericity violation flagged (Mauchly p < .05).")
         }

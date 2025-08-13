@@ -3,6 +3,6 @@
     Code
       report(result)
     Message
-      Test: (engine = )
+      Test: Example test (engine = example_engine)
       Estimate (mean diff): 1 [0.5, 1.5]
 

@@ -110,8 +110,8 @@ test_that("independent design with >2 groups defaults to anova_oneway_welch", {
 
 test_that("parametric strategy uses anova_oneway_equal engine for >2 groups", {
   df <- tibble::tibble(
-    outcome = c(1,2,3,4,5,6,7,8,9),
-    group = factor(rep(c("A","B","C"), each = 3))
+    outcome = c(1, 2, 3, 4, 5, 6, 7, 8, 9),
+    group = factor(rep(c("A", "B", "C"), each = 3))
   )
   spec <- suppressMessages(
     comp_spec(df) |>
@@ -293,7 +293,7 @@ test_that("warns on severe non-normality with very small n (anova_oneway)", {
       roles = list(outcome = "y", group = "g"),
       design = "independent",
       outcome_type = "numeric",
-      strategy = "auto",
+      strategy = "auto", # selector may pick Welch
       diagnostics = fake_diag,
       data_raw = df
     ),
@@ -303,7 +303,8 @@ test_that("warns on severe non-normality with very small n (anova_oneway)", {
   testthat::with_mocked_bindings(
     .tidycomp_engines = function() {
       list(
-        anova_oneway = function(...) list(dummy = TRUE) # minimal stub
+        anova_oneway = function(...) list(dummy = TRUE),
+        anova_oneway_welch = function(...) list(dummy = TRUE)
       )
     },
     .env = asNamespace("tidycomp"),
