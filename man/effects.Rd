@@ -9,22 +9,25 @@ effects(spec, conf_level = 0.95, effect = "default")
 \arguments{
 \item{spec}{A \code{comp_spec} created by \code{\link[=comp_spec]{comp_spec()}} and already fitted
 via \code{test()} (i.e., \code{spec$fitted} must exist). Roles must include a
-numeric outcome and a two‑level group.}
+numeric outcome and an appropriate grouping structure (two levels for
+two-group tests, multiple levels for ANOVA/Kruskal-Wallis, or an \code{id}
+column for repeated measures).}
 
 \item{conf_level}{Confidence level for the interval (numeric in (0, 1),
 default \code{0.95}).}
 
-\item{effect}{Optional override for some engines. Currently, only
-\code{effect = "cohens_d"} is supported for the \code{welch_t} engine to
-compute Cohen's \emph{d} instead of Hedges' \emph{g}.}
+\item{effect}{Optional override for some engines. Supported overrides are
+\code{effect = "cohens_d"} for \code{welch_t}, \code{effect = "epsilon_squared"}
+for \code{kruskal_wallis}, and \code{effect = "omega_squared"} for one-way
+ANOVA engines.}
 }
 \value{
 The input \code{spec}, updated in place with effect‑size fields in
 \code{spec$fitted}: \code{es_value}, \code{es_conf_low}, \code{es_conf_high}, \code{es_metric}.
 }
 \description{
-Compute an effect size (with a confidence interval) for a two‑group,
-numeric outcome based on the inferential engine stored in
+Compute an effect size (with a confidence interval) for a numeric
+outcome based on the inferential engine stored in
 \code{spec$fitted$engine}. Supported tests map to the following metrics:
 }
 \details{
@@ -35,15 +38,23 @@ numeric outcome based on the inferential engine stored in
 \item \code{"mann_whitney"}: Wilcoxon \emph{r} (rank biserial)
 \item \code{"paired_t"}: Cohen's \emph{d} for paired samples
 \item \code{"wilcoxon_signed_rank"}: Wilcoxon \emph{r} (rank biserial)
+\item \code{"kruskal_wallis"}: Rank \emph{eta}\^2 (default) or rank
+\emph{epsilon}\^2 when \code{effect = "epsilon_squared"}
+\item \code{"anova_oneway_equal"} / \code{"anova_oneway_welch"}: \emph{eta}\^2
+(default) or \emph{omega}\^2 when \code{effect = "omega_squared"}
+\item \code{"anova_repeated"}: partial \emph{eta}\^2
+\item \code{"friedman"}: Kendall's \emph{W}
 }
 
 The function reads from \code{spec$fitted} and writes \code{es_value},
 \code{es_conf_low}, \code{es_conf_high}, and \code{es_metric} before returning \code{spec}.
 \itemize{
-\item Supported design: two‑group comparison with a \strong{numeric} outcome.
+\item Supported designs: two-group, multi-group, or repeated measures with a
+\strong{numeric} outcome.
 \item Backend functions from the
 \href{https://easystats.github.io/effectsize/}{\code{effectsize}} package
-(e.g., \code{hedges_g()}, \code{cohens_d()}, \code{rank_biserial()}).
+(e.g., \code{hedges_g()}, \code{cohens_d()}, \code{eta_squared()},
+\code{rank_epsilon_squared()}).
 \item If the \strong{effectsize} package is not installed, a warning is issued
 and the input \code{spec} is returned unchanged.
 }

@@ -78,6 +78,105 @@ test_that("effects() computes rank biserial for mann_whitney engine", {
   expect_type(out$fitted$es_conf_high, "double")
 })
 
+# Multi-group engines ----
+
+test_that("effects() computes eta_squared for kruskal_wallis engine", {
+  out <-
+    comp_spec(iris) |>
+    set_roles(outcome = Sepal.Length, group = Species) |>
+    set_design("independent") |>
+    set_outcome_type("numeric") |>
+    set_engine("kruskal_wallis") |>
+    test() |>
+    effects(conf_level = 0.90)
+
+  expect_equal(out$fitted$es_metric, "eta_squared")
+  expect_type(out$fitted$es_value, "double")
+  expect_type(out$fitted$es_conf_low, "double")
+  expect_type(out$fitted$es_conf_high, "double")
+})
+
+test_that("effects() allows epsilon_squared for kruskal_wallis", {
+  out <-
+    comp_spec(iris) |>
+    set_roles(outcome = Sepal.Length, group = Species) |>
+    set_design("independent") |>
+    set_outcome_type("numeric") |>
+    set_engine("kruskal_wallis") |>
+    test() |>
+    effects(effect = "epsilon_squared", conf_level = 0.90)
+
+  expect_equal(out$fitted$es_metric, "epsilon_squared")
+  expect_type(out$fitted$es_value, "double")
+  expect_type(out$fitted$es_conf_low, "double")
+})
+
+test_that("effects() computes eta_squared for anova_oneway_equal engine", {
+  out <-
+    comp_spec(iris) |>
+    set_roles(outcome = Sepal.Length, group = Species) |>
+    set_design("independent") |>
+    set_outcome_type("numeric") |>
+    set_engine("anova_oneway_equal") |>
+    test() |>
+    effects(conf_level = 0.90)
+
+  expect_equal(out$fitted$es_metric, "eta_squared")
+  expect_type(out$fitted$es_value, "double")
+})
+
+test_that("effects() allows omega_squared for anova_oneway_welch", {
+  out <-
+    comp_spec(iris) |>
+    set_roles(outcome = Sepal.Length, group = Species) |>
+    set_design("independent") |>
+    set_outcome_type("numeric") |>
+    set_engine("anova_oneway_welch") |>
+    test() |>
+    effects(effect = "omega_squared", conf_level = 0.90)
+
+  expect_equal(out$fitted$es_metric, "omega_squared")
+  expect_type(out$fitted$es_value, "double")
+})
+
+test_that("effects() computes partial eta squared for anova_repeated engine", {
+  set.seed(123)
+  df <- tibble::tibble(
+    id = rep(1:6, each = 3),
+    group = factor(rep(c("A", "B", "C"), times = 6)),
+    outcome = rnorm(18)
+  )
+  out <- comp_spec(df) |>
+    set_roles(outcome = outcome, group = group, id = id) |>
+    set_design("repeated") |>
+    set_outcome_type("numeric") |>
+    set_engine("anova_repeated") |>
+    test() |>
+    effects(conf_level = 0.90)
+
+  expect_equal(out$fitted$es_metric, "eta_squared_partial")
+  expect_type(out$fitted$es_value, "double")
+})
+
+test_that("effects() computes Kendalls_W for friedman engine", {
+  set.seed(123)
+  df <- tibble::tibble(
+    id = rep(1:6, each = 3),
+    group = factor(rep(c("A", "B", "C"), times = 6)),
+    outcome = rnorm(18)
+  )
+  out <- comp_spec(df) |>
+    set_roles(outcome = outcome, group = group, id = id) |>
+    set_design("repeated") |>
+    set_outcome_type("numeric") |>
+    set_engine("friedman") |>
+    test() |>
+    effects(conf_level = 0.90)
+
+  expect_equal(out$fitted$es_metric, "Kendalls_W")
+  expect_type(out$fitted$es_value, "double")
+})
+
 # Paired t and Wilcoxon signed-rank ----
 
 test_that("effects() computes Cohen's d for paired_t engine", {
