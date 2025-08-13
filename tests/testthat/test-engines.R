@@ -22,7 +22,8 @@ test_that("engine registry lists available engines", {
       "mann_whitney",
       "paired_t",
       "wilcoxon_signed_rank",
-      "anova_oneway",
+      "anova_oneway_equal",
+      "anova_oneway_welch",
       "kruskal_wallis",
       "anova_repeated",
       "friedman"
@@ -56,17 +57,32 @@ test_that("Welch t engine matches stats::t.test", {
 
 # ANOVA -----------------------------------------------------------------------
 
-test_that("anova_oneway engine matches stats::aov", {
+test_that("anova_oneway_equal engine matches stats::oneway.test with equal variances", {
   df <- tibble::tibble(
     outcome = c(1,2,3,4,5,6,7,8,9),
     group = factor(rep(c("A","B","C"), each = 3))
   )
   meta <- make_meta()
-  res <- tidycomp:::engine_anova_oneway(df, meta)
-  fit <- stats::aov(outcome ~ group, data = df)
-  an <- summary(fit)[[1]]
-  expect_equal(res$statistic, unname(an["group","F value"]))
-  expect_equal(res$p.value, unname(an["group","Pr(>F)"]))
+  res <- tidycomp:::engine_anova_oneway_equal(df, meta)
+  fit <- stats::oneway.test(outcome ~ group, data = df, var.equal = TRUE)
+  expect_equal(res$statistic, unname(fit$statistic))
+  expect_equal(res$df1, unname(fit$parameter[1]))
+  expect_equal(res$df2, unname(fit$parameter[2]))
+  expect_equal(res$p.value, unname(fit$p.value))
+})
+
+test_that("anova_oneway_welch engine matches stats::oneway.test", {
+  df <- tibble::tibble(
+    outcome = c(1,2,3,4,5,6,7,8,9),
+    group = factor(rep(c("A","B","C"), each = 3))
+  )
+  meta <- make_meta()
+  res <- tidycomp:::engine_anova_oneway_welch(df, meta)
+  fit <- stats::oneway.test(outcome ~ group, data = df, var.equal = FALSE)
+  expect_equal(res$statistic, unname(fit$statistic))
+  expect_equal(res$df1, unname(fit$parameter[1]))
+  expect_equal(res$df2, unname(fit$parameter[2]))
+  expect_equal(res$p.value, unname(fit$p.value))
 })
 
 # Kruskal-Wallis --------------------------------------------------------------

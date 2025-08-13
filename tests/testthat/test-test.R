@@ -93,7 +93,7 @@ test_that("default engine is welch_t and warns if diagnostics missing", {
   expect_equal(res$fitted$engine, "welch_t")
 })
 
-test_that("independent design with >2 groups defaults to anova_oneway", {
+test_that("independent design with >2 groups defaults to anova_oneway_welch", {
   df <- tibble::tibble(
     outcome = c(1, 2, 3, 4, 5, 6, 7, 8, 9),
     group = factor(rep(c("A", "B", "C"), each = 3))
@@ -105,7 +105,23 @@ test_that("independent design with >2 groups defaults to anova_oneway", {
       set_outcome_type("numeric")
   )
   res <- suppressMessages(test(spec))
-  expect_equal(res$fitted$engine, "anova_oneway")
+  expect_equal(res$fitted$engine, "anova_oneway_welch")
+})
+
+test_that("parametric strategy uses anova_oneway_equal engine for >2 groups", {
+  df <- tibble::tibble(
+    outcome = c(1,2,3,4,5,6,7,8,9),
+    group = factor(rep(c("A","B","C"), each = 3))
+  )
+  spec <- suppressMessages(
+    comp_spec(df) |>
+      set_roles(outcome = outcome, group = group) |>
+      set_design("independent") |>
+      set_outcome_type("numeric") |>
+      set_strategy("parametric")
+  )
+  res <- suppressMessages(test(spec))
+  expect_equal(res$fitted$engine, "anova_oneway_equal")
 })
 
 test_that("parametric strategy uses student_t engine", {
