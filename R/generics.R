@@ -46,17 +46,20 @@ report.comp_spec <- function(x, ...) {
 #' @rdname report
 #' @export
 report.comp_result <- function(x, ...) {
-  cli::cli_inform("Test: {x$method} (engine = {x$engine})")
-  cli::cli_inform(
-    "Estimate (mean diff): {round(x$fitted$estimate, 3)} [{round(x$fitted$conf.low,3)}, {round(x$fitted$conf.high,3)}]"
-  )
-  if (!is.null(x$fitted$es_value)) {
+  res <- x$fitted %||% x
+  cli::cli_inform("Test: {res$method} (engine = {res$engine})")
+  if (!all(is.na(c(res$estimate, res$conf.low, res$conf.high)))) {
     cli::cli_inform(
-      "Effect size: {x$fitted$es_metric} = {round(x$fitted$es_value, 3)} [{round(x$fitted$es_conf_low,3)}, {round(x$fitted$es_conf_high,3)}]"
+      "Estimate (mean diff): {round(res$estimate, 3)} [{round(res$conf.low,3)}, {round(res$conf.high,3)}]"
     )
   }
-  if (length(x$fitted$notes[[1]]) > 0) {
-    cli::cli_warn("Notes: {paste(x$fitted$notes[[1]], collapse = ' | ')}")
+  if (!is.null(res$es_value)) {
+    cli::cli_inform(
+      "Effect size: {res$es_metric} = {round(res$es_value, 3)} [{round(res$es_conf_low,3)}, {round(res$es_conf_high,3)}]"
+    )
+  }
+  if (length(res$notes[[1]]) > 0) {
+    cli::cli_warn("Notes: {paste(res$notes[[1]], collapse = ' | ')}")
   }
   invisible(x)
 }

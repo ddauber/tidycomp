@@ -2,6 +2,8 @@
 
 * Added paired 2-group comparisons: `engine_paired_t` and `engine_wilcoxon_signed_rank`.
 * Amended tests to account for new paired engines.
+* Added multi-group comparisons: `engine_anova_oneway`, `engine_kruskal_wallis`,
+  `engine_anova_repeated`, and `engine_friedman` with corresponding diagnostics.
 
 # tidycomp 0.1.1
 

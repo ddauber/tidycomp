@@ -21,7 +21,11 @@ test_that("engine registry lists available engines", {
       "student_t",
       "mann_whitney",
       "paired_t",
-      "wilcoxon_signed_rank"
+      "wilcoxon_signed_rank",
+      "anova_oneway",
+      "kruskal_wallis",
+      "anova_repeated",
+      "friedman"
     )
   )
   purrr::walk(engines, ~ expect_true(is.function(.x)))
@@ -48,6 +52,67 @@ test_that("Welch t engine matches stats::t.test", {
     unname(base$conf.int),
     ignore_attr = TRUE
   )
+})
+
+# ANOVA -----------------------------------------------------------------------
+
+test_that("anova_oneway engine matches stats::aov", {
+  df <- tibble::tibble(
+    outcome = c(1,2,3,4,5,6,7,8,9),
+    group = factor(rep(c("A","B","C"), each = 3))
+  )
+  meta <- make_meta()
+  res <- tidycomp:::engine_anova_oneway(df, meta)
+  fit <- stats::aov(outcome ~ group, data = df)
+  an <- summary(fit)[[1]]
+  expect_equal(res$statistic, unname(an["group","F value"]))
+  expect_equal(res$p.value, unname(an["group","Pr(>F)"]))
+})
+
+# Kruskal-Wallis --------------------------------------------------------------
+
+test_that("kruskal_wallis engine matches stats::kruskal.test", {
+  df <- tibble::tibble(
+    outcome = c(1,2,3,4,5,6,7,8,9),
+    group = factor(rep(c("A","B","C"), each = 3))
+  )
+  meta <- make_meta()
+  res <- tidycomp:::engine_kruskal_wallis(df, meta)
+  fit <- stats::kruskal.test(outcome ~ group, data = df)
+  expect_equal(res$statistic, unname(fit$statistic))
+  expect_equal(res$p.value, unname(fit$p.value))
+})
+
+# Repeated measures ANOVA ----------------------------------------------------
+
+test_that("anova_repeated engine matches stats::aov", {
+  df <- tibble::tibble(
+    id = rep(1:4, each = 3),
+    group = factor(rep(c("A","B","C"), times = 4)),
+    outcome = c(1,2,3,4,5,6,7,8,9,10,11,12)
+  )
+  meta <- make_meta()
+  res <- tidycomp:::engine_anova_repeated(df, meta)
+  fit <- stats::aov(outcome ~ group + Error(id/group), data = df)
+  summ <- summary(fit)
+  within <- summ[["Error: Within"]][[1]]
+  expect_equal(res$statistic, unname(within["group","F value"]))
+  expect_equal(res$p.value, unname(within["group","Pr(>F)"]))
+})
+
+# Friedman --------------------------------------------------------------------
+
+test_that("friedman engine matches stats::friedman.test", {
+  df <- tibble::tibble(
+    id = rep(1:4, each = 3),
+    group = factor(rep(c("A","B","C"), times = 4)),
+    outcome = c(1,2,3,2,4,6,3,6,9,4,8,12)
+  )
+  meta <- make_meta()
+  res <- tidycomp:::engine_friedman(df, meta)
+  fit <- stats::friedman.test(outcome ~ group | id, data = df)
+  expect_equal(res$statistic, unname(fit$statistic))
+  expect_equal(res$p.value, unname(fit$p.value))
 })
 
 # Student t-test -------------------------------------------------------------
