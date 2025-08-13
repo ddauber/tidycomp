@@ -78,6 +78,42 @@ test_that("effects() computes rank biserial for mann_whitney engine", {
   expect_type(out$fitted$es_conf_high, "double")
 })
 
+# Paired t and Wilcoxon signed-rank ----
+
+test_that("effects() computes Cohen's d for paired_t engine", {
+  df <- tibble::tibble(
+    id = rep(1:5, each = 2),
+    group = factor(rep(c("A", "B"), times = 5)),
+    outcome = c(1, 2, 2, 3, 3, 4, 4, 5, 5, 6)
+  )
+  out <- comp_spec(df) |>
+    set_roles(outcome = outcome, group = group, id = id) |>
+    set_design("paired") |>
+    set_outcome_type("numeric") |>
+    set_engine("paired_t") |>
+    test() |>
+    effects(conf_level = 0.90)
+  expect_equal(out$fitted$es_metric, "Cohens_d")
+  expect_type(out$fitted$es_value, "double")
+})
+
+test_that("effects() computes rank biserial for wilcoxon_signed_rank engine", {
+  df <- tibble::tibble(
+    id = rep(1:6, each = 2),
+    group = factor(rep(c("A", "B"), times = 6)),
+    outcome = c(1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7)
+  )
+  out <- comp_spec(df) |>
+    set_roles(outcome = outcome, group = group, id = id) |>
+    set_design("paired") |>
+    set_outcome_type("numeric") |>
+    set_engine("wilcoxon_signed_rank") |>
+    test() |>
+    effects(conf_level = 0.90)
+  expect_equal(out$fitted$es_metric, "r_Wilcoxon")
+  expect_type(out$fitted$es_value, "double")
+})
+
 # Unknown engines fallback to Hedges' g with a warning ----
 test_that("effects() defaults to Hedges g for unknown engine (with warning)", {
   fit <- comp_spec(mtcars) |>

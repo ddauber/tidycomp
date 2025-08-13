@@ -70,6 +70,51 @@
   df
 }
 
+#' Standardize paired numeric data with id
+#'
+#' Select outcome, group, and id columns, validate pairing structure, and
+#' return a wide tibble with one column per group ordered by id.
+#'
+#' @param data A data frame.
+#' @param outcome,group,id Character names of validated columns.
+#' @return A tibble with two numeric columns named after group levels.
+#' @keywords internal
+#' @noRd
+.standardize_paired_numeric <- function(data, outcome, group, id) {
+  df <- tibble::as_tibble(data[, c(outcome, group, id)])
+  names(df) <- c("outcome", "group", "id")
+  if (!is.numeric(df$outcome)) {
+    cli::cli_abort("Outcome must be numeric for the current engine.")
+  }
+  if (is.null(id)) {
+    cli::cli_abort("Paired design requires an `id` role.")
+  }
+  if (!is.factor(df$group)) {
+    df$group <- factor(df$group)
+  }
+  if (nlevels(df$group) != 2) {
+    cli::cli_abort("Group must have exactly 2 levels for this engine.")
+  }
+  counts <- table(df$id)
+  if (any(counts != 2)) {
+    cli::cli_abort("Each id must appear exactly twice (once per group).")
+  }
+  chk <- dplyr::count(df, id, group)
+  if (any(chk$n != 1)) {
+    cli::cli_abort("Each id must have one observation for each group.")
+  }
+  wide <- tidyr::pivot_wider(
+    df,
+    id_cols = "id",
+    names_from = "group",
+    values_from = "outcome"
+  )
+  if (any(!stats::complete.cases(wide))) {
+    cli::cli_abort("Missing outcomes for at least one id.")
+  }
+  tibble::as_tibble(wide[, setdiff(names(wide), "id"), drop = FALSE])
+}
+
 #' Flag outliers using common rules
 #'
 #' Compute lower/upper fences for finite values of `x` based on one of

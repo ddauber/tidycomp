@@ -16,14 +16,41 @@ test_that("test() requires outcome and group roles", {
   expect_error(test(spec), "set_roles")
 })
 
-test_that("test() only supports independent design", {
+test_that("test() supports paired design when id provided", {
+  df <- tibble::tibble(
+    id = rep(1:5, each = 2),
+    group = factor(rep(c("A", "B"), times = 5)),
+    outcome = c(1, 2, 2, 3, 3, 4, 4, 5, 5, 6)
+  )
+  spec <- suppressMessages(
+    comp_spec(df) |>
+      set_roles(outcome = outcome, group = group, id = id) |>
+      set_design("paired") |>
+      set_outcome_type("numeric")
+  )
+  res <- suppressMessages(test(spec))
+  expect_s3_class(res$fitted, "comp_result")
+  expect_equal(res$fitted$engine, "paired_t")
+})
+
+test_that("test() requires id for paired design", {
   spec <- suppressMessages(
     comp_spec(mtcars) |>
       set_roles(outcome = mpg, group = am) |>
       set_design("paired") |>
       set_outcome_type("numeric")
   )
-  expect_error(test(spec), "independent")
+  expect_error(test(spec), "id role")
+})
+
+test_that("test() errors for unsupported designs", {
+  spec <- suppressMessages(
+    comp_spec(mtcars) |>
+      set_roles(outcome = mpg, group = am) |>
+      set_design("repeated") |>
+      set_outcome_type("numeric")
+  )
+  expect_error(test(spec), "independent' or 'paired")
 })
 
 test_that("test() requires numeric outcome type", {
@@ -58,6 +85,23 @@ test_that("parametric strategy uses student_t engine", {
   )
   expect_warning(res <- suppressMessages(test(spec)), "diagnose")
   expect_equal(res$fitted$engine, "student_t")
+})
+
+test_that("can use wilcoxon_signed_rank engine for paired data", {
+  df <- tibble::tibble(
+    id = rep(1:5, each = 2),
+    group = factor(rep(c("A", "B"), times = 5)),
+    outcome = c(1, 2, 2, 3, 3, 4, 4, 5, 5, 6)
+  )
+  spec <- suppressMessages(
+    comp_spec(df) |>
+      set_roles(outcome = outcome, group = group, id = id) |>
+      set_design("paired") |>
+      set_outcome_type("numeric") |>
+      set_engine("wilcoxon_signed_rank")
+  )
+  res <- suppressMessages(test(spec))
+  expect_equal(res$fitted$engine, "wilcoxon_signed_rank")
 })
 
 test_that("nudge toward Mann-Whitney for small n and non-normal data", {

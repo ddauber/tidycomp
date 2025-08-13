@@ -22,7 +22,9 @@
   list(
     welch_t = engine_welch_t,
     student_t = engine_student_t,
-    mann_whitney = engine_mann_whitney
+    mann_whitney = engine_mann_whitney,
+    paired_t = engine_paired_t,
+    wilcoxon_signed_rank = engine_wilcoxon_signed_rank
   )
 }
 
@@ -181,6 +183,98 @@ engine_mann_whitney <- function(data, meta) {
     conf.high = ci_hi,
     conf.level = clvl,
     metric = "location_shift_hodges_lehmann", # clearer than "stochastic_ordering"
+    notes = list(c(
+      meta$diagnostics$notes %||% character(),
+      if (!has_ci) {
+        "CI unavailable (ties/small sample/edge case)."
+      } else {
+        character()
+      }
+    ))
+  )
+}
+
+#' Paired t-test engine (internal)
+#'
+#' Perform a paired t-test for a numeric outcome with two related groups.
+#'
+#' @param data A data frame containing outcome, group, and id columns.
+#' @param meta A list with roles/diagnostics metadata.
+#' @keywords internal
+#' @noRd
+engine_paired_t <- function(data, meta) {
+  df <- .standardize_paired_numeric(
+    data,
+    meta$roles$outcome,
+    meta$roles$group,
+    meta$roles$id
+  )
+  g <- names(df)
+  fit <- stats::t.test(df[[g[2]]], df[[g[1]]], paired = TRUE)
+  tibble::tibble(
+    test = "t",
+    method = "Paired t-test",
+    engine = "paired_t",
+    n = nrow(df),
+    statistic = unname(fit$statistic),
+    df = unname(fit$parameter),
+    p.value = unname(fit$p.value),
+    estimate = unname(fit$estimate),
+    conf.low = fit$conf.int[1],
+    conf.high = fit$conf.int[2],
+    metric = "mean_diff",
+    notes = list(meta$diagnostics$notes %||% character())
+  )
+}
+
+#' Wilcoxon signed-rank engine (internal)
+#'
+#' Perform a paired, distribution-free comparison using the Wilcoxon
+#' signed-rank test.
+#'
+#' @param data A data frame containing outcome, group, and id columns.
+#' @param meta A list with roles/diagnostics and optional settings.
+#' @keywords internal
+#' @noRd
+engine_wilcoxon_signed_rank <- function(data, meta) {
+  df <- .standardize_paired_numeric(
+    data,
+    meta$roles$outcome,
+    meta$roles$group,
+    meta$roles$id
+  )
+  g <- names(df)
+  alt <- meta$settings$alternative %||% "two.sided"
+  conf_level <- meta$settings$conf_level %||% 0.95
+  exact_opt <- meta$settings$exact %||% NULL
+  fit <- stats::wilcox.test(
+    df[[g[2]]],
+    df[[g[1]]],
+    paired = TRUE,
+    alternative = alt,
+    conf.int = TRUE,
+    conf.level = conf_level,
+    exact = exact_opt,
+    correct = TRUE
+  )
+  est <- if (!is.null(fit$estimate)) unname(fit$estimate) else NA_real_
+  has_ci <- !is.null(fit$conf.int) && length(fit$conf.int) == 2L
+  ci_lo <- if (has_ci) unname(fit$conf.int[1]) else NA_real_
+  ci_hi <- if (has_ci) unname(fit$conf.int[2]) else NA_real_
+  clvl <- if (has_ci) unname(attr(fit$conf.int, "conf.level")) else conf_level
+  tibble::tibble(
+    test = "wilcox_signed_rank",
+    method = fit$method,
+    engine = "wilcoxon_signed_rank",
+    n = nrow(df),
+    statistic = unname(fit$statistic),
+    df = NA_real_,
+    p.value = unname(fit$p.value),
+    estimate = est,
+    conf.low = ci_lo,
+    conf.high = ci_hi,
+    conf.level = clvl,
+    metric = "location_shift_hodges_lehmann",
     notes = list(c(
       meta$diagnostics$notes %||% character(),
       if (!has_ci) {

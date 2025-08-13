@@ -82,6 +82,33 @@ test_that(".standardize_two_group_numeric validates input types", {
 })
 
 # -----------------------------------------------------------------------------
+# .standardize_paired_numeric()
+# -----------------------------------------------------------------------------
+
+test_that(".standardize_paired_numeric returns wide tibble", {
+  data <- tibble::tibble(
+    id = rep(1:3, each = 2),
+    g = factor(rep(c("A", "B"), times = 3)),
+    y = c(1, 2, 3, 4, 5, 6)
+  )
+  res <- tidycomp:::.standardize_paired_numeric(data, "y", "g", "id")
+  expect_s3_class(res, "tbl_df")
+  expect_equal(ncol(res), 2)
+})
+
+test_that(".standardize_paired_numeric validates pairing", {
+  data_bad <- tibble::tibble(
+    id = c(1, 1, 2),
+    g = factor(c("A", "A", "B")),
+    y = 1:3
+  )
+  expect_error(
+    tidycomp:::.standardize_paired_numeric(data_bad, "y", "g", "id"),
+    "Each id must have one observation"
+  )
+})
+
+# -----------------------------------------------------------------------------
 # .flag_outliers()
 # -----------------------------------------------------------------------------
 

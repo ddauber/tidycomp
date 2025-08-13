@@ -20,7 +20,8 @@ Imports:
     ggplot2,
     purrr,
     rlang,
-    tibble
+    tibble,
+    tidyr
 Suggests:
     broom,
     knitr,
