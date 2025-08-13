@@ -1,3 +1,5 @@
+# tidycomp (development version)
+
 # tidycomp 0.2.0
 
 * Added paired 2-group comparisons: `engine_paired_t` and `engine_wilcoxon_signed_rank`.

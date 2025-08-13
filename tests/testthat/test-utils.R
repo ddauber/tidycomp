@@ -196,7 +196,7 @@ test_that(".standardize_paired_numeric converts non-factor group to factor", {
 # -----------------------------------------------------------------------------
 
 test_that(".standardize_multi_group_numeric handles >2 groups", {
-  data <- data.frame(y = 1:9, g = rep(c("A","B","C"), each = 3))
+  data <- data.frame(y = 1:9, g = rep(c("A", "B", "C"), each = 3))
   res <- tidycomp:::.standardize_multi_group_numeric(data, "y", "g")
   expect_s3_class(res, "tbl_df")
   expect_named(res, c("outcome", "group"))
@@ -210,12 +210,101 @@ test_that(".standardize_multi_group_numeric handles >2 groups", {
 test_that(".standardize_repeated_numeric validates structure", {
   data <- tibble::tibble(
     id = rep(1:3, each = 3),
-    g = factor(rep(c("A","B","C"), times = 3)),
+    g = factor(rep(c("A", "B", "C"), times = 3)),
     y = rnorm(9)
   )
   res <- tidycomp:::.standardize_repeated_numeric(data, "y", "g", "id")
   expect_s3_class(res, "tbl_df")
   expect_equal(ncol(res), 3)
+})
+
+
+test_that(".standardize_repeated_numeric returns expected tibble", {
+  data <- tibble::tibble(
+    id = rep(1:3, each = 3),
+    g = factor(rep(c("A", "B", "C"), times = 3)),
+    y = as.numeric(1:9)
+  )
+  res <- tidycomp:::.standardize_repeated_numeric(data, "y", "g", "id")
+  expect_s3_class(res, "tbl_df")
+  expect_named(res, c("outcome", "group", "id"))
+  expect_true(is.numeric(res$outcome))
+  expect_true(is.factor(res$group))
+  expect_equal(nlevels(res$group), 3)
+})
+
+test_that(".standardize_repeated_numeric converts non-factor group to factor", {
+  data <- tibble::tibble(
+    id = rep(1:2, each = 3),
+    g = rep(c("A", "B", "C"), times = 2), # character
+    y = rnorm(6)
+  )
+  res <- tidycomp:::.standardize_repeated_numeric(data, "y", "g", "id")
+  expect_s3_class(res, "tbl_df")
+  expect_true(is.factor(res$group))
+})
+
+test_that(".standardize_repeated_numeric validates numeric outcome", {
+  data <- tibble::tibble(
+    id = rep(1:2, each = 3),
+    g = factor(rep(c("A", "B", "C"), times = 2)),
+    y = letters[1:6] # not numeric
+  )
+  expect_error(
+    tidycomp:::.standardize_repeated_numeric(data, "y", "g", "id"),
+    "\\QOutcome must be numeric for the current engine.\\E"
+  )
+})
+
+test_that(".standardize_repeated_numeric validates id is provided", {
+  data <- tibble::tibble(
+    g = factor(rep(c("A", "B"), times = 3)),
+    y = 1:6
+  )
+  expect_error(
+    tidycomp:::.standardize_repeated_numeric(data, "y", "g", NULL),
+    "\\QRepeated measures design requires an `id` role.\\E"
+  )
+})
+
+test_that(".standardize_repeated_numeric requires >= 2 group levels", {
+  # Single group level
+  data_one <- tibble::tibble(
+    id = rep(1:3, each = 1),
+    g = factor(rep("A", 3)),
+    y = rnorm(3)
+  )
+  expect_error(
+    tidycomp:::.standardize_repeated_numeric(data_one, "y", "g", "id"),
+    "\\QGroup must have at least 2 levels for this engine.\\E"
+  )
+})
+
+test_that(".standardize_repeated_numeric errors if any id lacks a level", {
+  # id = 2 is missing "C" and has "A" duplicated
+  data_missing <- tibble::tibble(
+    id = c(1, 1, 1, 2, 2, 2, 3, 3, 3),
+    g = factor(c("A", "B", "C", "A", "A", "B", "A", "B", "C")),
+    y = rnorm(9)
+  )
+
+  expect_error(
+    tidycomp:::.standardize_repeated_numeric(data_missing, "y", "g", "id"),
+    "\\QEach id must have one observation for each group.\\E"
+  )
+})
+
+test_that(".standardize_repeated_numeric errors on duplicated id-group rows", {
+  # id=1, group=A appears twice (n == 2)
+  data_dup <- tibble::tibble(
+    id = c(1, 1, 1, 1, 2, 2, 2),
+    g = factor(c("A", "A", "B", "C", "A", "B", "C")),
+    y = rnorm(7)
+  )
+  expect_error(
+    tidycomp:::.standardize_repeated_numeric(data_dup, "y", "g", "id"),
+    "\\QEach id must have one observation for each group.\\E"
+  )
 })
 
 # -----------------------------------------------------------------------------
@@ -257,8 +346,8 @@ test_that(".flag_outliers returns NA when no finite values", {
 # -----------------------------------------------------------------------------
 
 test_that(".brown_forsythe computes p-value for multiple groups", {
-  y <- c(1,2,1,2,1,1,4,1,4)
-  g <- rep(c("A","B","C"), each = 3)
+  y <- c(1, 2, 1, 2, 1, 1, 4, 1, 4)
+  g <- rep(c("A", "B", "C"), each = 3)
   p <- tidycomp:::.brown_forsythe(y, g)
   expect_type(p, "double")
   expect_false(is.na(p))
