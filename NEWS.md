@@ -17,7 +17,7 @@
 * Documentation for all functions has been added/updated/tidied.
 * `README.md` has been updated to include a link to the Contributor Code of Conduct.
 * `step_trim_outliers()` now supports `method = "iqr"`, `"mad"`, or `"sd"`
-  (all default to `k = 3`), following guidance from the r4np book.
+  (all default to `k = 3`), following guidance from the [R For Non-Programmers Book](https://r4np.com).
 
 # tidycomp 0.0.0.9000
 
