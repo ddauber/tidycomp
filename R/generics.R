@@ -1,22 +1,29 @@
 #' Tidy output for comparison results
 #'
 #' Generic to return a tibble representation of a result. The implemented
-#' method for `comp_result` coerces the object to a tibble.
+#' method for `comp_result` coerces the object to a tibble and optionally
+#' drops columns that contain only `NA` values.
 #'
 #' @param x An object to tidy. Currently, the method is defined for
 #'   objects of class `comp_result`.
+#' @param complete Logical. If `FALSE` (default), columns that are entirely
+#'   `NA` are removed from the output. Set to `TRUE` to retain all columns.
 #' @param ... Passed to methods.
 #'
 #' @return A tibble.
 #' @export
-tidy <- function(x, ...) {
+tidy <- function(x, complete = FALSE, ...) {
   UseMethod("tidy")
 }
 
 #' @rdname tidy
 #' @export
-tidy.comp_result <- function(x, ...) {
-  tibble::as_tibble(x)
+tidy.comp_result <- function(x, complete = FALSE, ...) {
+  out <- tibble::as_tibble(x)
+  if (!complete) {
+    out <- dplyr::select(out, dplyr::where(~ !all(is.na(.x))))
+  }
+  out
 }
 
 #' Report summary

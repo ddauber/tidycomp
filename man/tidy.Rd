@@ -5,13 +5,16 @@
 \alias{tidy.comp_result}
 \title{Tidy output for comparison results}
 \usage{
-tidy(x, ...)
+tidy(x, complete = FALSE, ...)
 
-\method{tidy}{comp_result}(x, ...)
+\method{tidy}{comp_result}(x, complete = FALSE, ...)
 }
 \arguments{
 \item{x}{An object to tidy. Currently, the method is defined for
 objects of class \code{comp_result}.}
+
+\item{complete}{Logical. If \code{FALSE} (default), columns that are entirely
+\code{NA} are removed from the output. Set to \code{TRUE} to retain all columns.}
 
 \item{...}{Passed to methods.}
 }
@@ -20,5 +23,6 @@ A tibble.
 }
 \description{
 Generic to return a tibble representation of a result. The implemented
-method for \code{comp_result} coerces the object to a tibble.
+method for \code{comp_result} coerces the object to a tibble and optionally
+drops columns that contain only \code{NA} values.
 }

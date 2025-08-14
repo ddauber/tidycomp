@@ -62,3 +62,17 @@ Engine selection (MVP):
   )
   invisible(NULL)
 }
+
+#' Quickly display non-`NA` columns
+#'
+#' Internal helper that wraps [tidy()] with `complete = FALSE` for
+#' interactive console use. It removes columns that are entirely `NA` and
+#' returns the resulting tibble.
+#'
+#' @param x A `comp_result` or other object accepted by [tidy()].
+#'
+#' @return A tibble with only columns that contain at least one non-`NA` value.
+#' @keywords internal
+.tidy_display <- function(x) {
+  tidy(x, complete = FALSE)
+}

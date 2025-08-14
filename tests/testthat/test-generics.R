@@ -28,6 +28,25 @@ test_that("tidy() on comp_result returns a tibble", {
   expect_equal(tidied, tibble::as_tibble(result))
 })
 
+test_that("tidy() drops all-NA columns by default but can retain them", {
+  res <- result
+  res$df2 <- NA
+  class(res) <- c("comp_result", "list")
+
+  tidied <- tidy(res)
+  expect_false("df2" %in% names(tidied))
+
+  tidied_full <- tidy(res, complete = TRUE)
+  expect_true("df2" %in% names(tidied_full))
+})
+
+test_that(".tidy_display() mirrors tidy() defaults", {
+  res <- result
+  res$df2 <- NA
+  class(res) <- c("comp_result", "list")
+  expect_equal(.tidy_display(res), tidy(res))
+})
+
 
 test_that("report() on comp_spec without results errors", {
   empty_spec <- comp_spec(sample_data)
