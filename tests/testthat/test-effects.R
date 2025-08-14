@@ -114,6 +114,68 @@ test_that("effects() computes rank biserial for wilcoxon_signed_rank engine", {
   expect_type(out$fitted$es_value, "double")
 })
 
+# Multi-group engines ----
+
+test_that("effects() computes eta squared for anova_oneway_equal engine", {
+  df <- tibble::tibble(
+    outcome = c(1, 2, 3, 4, 5, 6, 7, 8, 9),
+    group = factor(rep(c("A", "B", "C"), each = 3))
+  )
+  spec <- comp_spec(df) |>
+    set_roles(outcome = outcome, group = group) |>
+    set_design("independent") |>
+    set_outcome_type("numeric")
+  spec$fitted <- list(engine = "anova_oneway_equal")
+  out <- effects(spec, conf_level = 0.90)
+  expect_equal(out$fitted$es_metric, "Eta2")
+  expect_type(out$fitted$es_value, "double")
+})
+
+test_that("effects() computes omega squared for anova_oneway_welch engine", {
+  df <- tibble::tibble(
+    outcome = c(1, 2, 3, 4, 5, 6, 7, 8, 9),
+    group = factor(rep(c("A", "B", "C"), each = 3))
+  )
+  spec <- comp_spec(df) |>
+    set_roles(outcome = outcome, group = group) |>
+    set_design("independent") |>
+    set_outcome_type("numeric")
+  spec$fitted <- list(engine = "anova_oneway_welch")
+  out <- effects(spec, conf_level = 0.90)
+  expect_equal(out$fitted$es_metric, "Omega2")
+  expect_type(out$fitted$es_value, "double")
+})
+
+test_that("effects() computes epsilon squared for kruskal_wallis engine", {
+  df <- tibble::tibble(
+    outcome = c(1, 2, 3, 4, 5, 6, 7, 8, 9),
+    group = factor(rep(c("A", "B", "C"), each = 3))
+  )
+  spec <- comp_spec(df) |>
+    set_roles(outcome = outcome, group = group) |>
+    set_design("independent") |>
+    set_outcome_type("numeric")
+  spec$fitted <- list(engine = "kruskal_wallis")
+  out <- effects(spec, conf_level = 0.90)
+  expect_equal(out$fitted$es_metric, "Epsilon2")
+  expect_type(out$fitted$es_value, "double")
+})
+
+test_that("effects() allows custom effect size functions", {
+  df <- tibble::tibble(
+    outcome = c(1, 2, 3, 4, 5, 6, 7, 8, 9),
+    group = factor(rep(c("A", "B", "C"), each = 3))
+  )
+  spec <- comp_spec(df) |>
+    set_roles(outcome = outcome, group = group) |>
+    set_design("independent") |>
+    set_outcome_type("numeric")
+  spec$fitted <- list(engine = "anova_oneway_equal")
+  out <- effects(spec, effect = "omega_squared", conf_level = 0.90)
+  expect_equal(out$fitted$es_metric, "Omega2")
+  expect_type(out$fitted$es_value, "double")
+})
+
 # Unknown engines fallback to Hedges' g with a warning ----
 test_that("effects() defaults to Hedges g for unknown engine (with warning)", {
   fit <- comp_spec(mtcars) |>
