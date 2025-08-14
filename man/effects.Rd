@@ -37,7 +37,9 @@ tests map to the following default metrics:
 \item \code{"wilcoxon_signed_rank"}: Wilcoxon \emph{r} (rank biserial)
 \item \code{"anova_oneway_equal"}: Eta squared
 \item \code{"anova_oneway_welch"}: Omega squared
-\item \code{"kruskal_wallis"}: Epsilon squared
+\item \code{"kruskal_wallis"}: Rank-based epsilon squared
+\item \code{"anova_repeated"}: Partial eta squared
+\item \code{"friedman"}: Kendall's \emph{W}
 }
 
 The function reads from \code{spec$fitted} and writes \code{es_value},

@@ -115,7 +115,9 @@ effects <- function(spec, conf_level = 0.95, effect = "default") {
     )
     g <- names(df)
     args <- list(df[[g[2]]], df[[g[1]]], paired = TRUE, ci = conf_level)
-  } else if (engine %in% c("anova_oneway_equal", "anova_oneway_welch", "kruskal_wallis")) {
+  } else if (
+    engine %in% c("anova_oneway_equal", "anova_oneway_welch", "kruskal_wallis")
+  ) {
     df <- .standardize_multi_group_numeric(
       data,
       spec$roles$outcome,
@@ -153,11 +155,22 @@ effects <- function(spec, conf_level = 0.95, effect = "default") {
     args <- list(outcome ~ group, data = df, ci = conf_level)
   }
 
-  fun <- getExportedValue("effectsize", effect)
+  effect_fun <- switch(
+    effect,
+    cohens_d = effectsize::cohens_d,
+    hedges_g = effectsize::hedges_g,
+    rank_biserial = effectsize::rank_biserial,
+    eta_squared = effectsize::eta_squared,
+    omega_squared = effectsize::omega_squared,
+    rank_epsilon_squared = effectsize::rank_epsilon_squared,
+    kendalls_w = effectsize::kendalls_w,
+    getExportedValue("effectsize", effect)
+  )
+
   out <- if (engine == "anova_repeated") {
-    suppressWarnings(do.call(fun, args))
+    suppressWarnings(do.call(effect_fun, args))
   } else {
-    do.call(fun, args)
+    do.call(effect_fun, args)
   }
 
   if (engine == "anova_repeated") {
