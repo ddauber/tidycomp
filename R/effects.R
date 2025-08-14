@@ -373,7 +373,7 @@ effects <- function(
   if (inherits(model, "htest") && !is.null(model$statistic[["W"]])) {
     return("rank_biserial")
   }
-  if (inherits(model, "friedman.test")) {
+  if (inherits(model, "htest") && grepl("Friedman", model$method, ignore.case = TRUE)) {
     return("kendalls_w")
   }
   "eta2"
@@ -385,6 +385,37 @@ effects <- function(
 
 # core router: compute effect sizes using effectsize/performance ONLY from proper inputs
 .compute_effects <- function(model, type, ci, parent_spec = NULL) {
+  # --- Kruskal-Wallis: rank-based epsilon squared from raw data ---
+  if (
+    type == "epsilon2" &&
+      inherits(model, "htest") &&
+      !is.null(parent_spec) &&
+      (parent_spec$engine == "kruskal_wallis" ||
+        grepl("Kruskal-Wallis", model$method, ignore.case = TRUE))
+  ) {
+    if (!rlang::is_installed("effectsize")) {
+      stop("Package 'effectsize' is required for epsilon squared.", call. = FALSE)
+    }
+
+    dat <- .get_spec_data(parent_spec)
+    roles <- .get_spec_roles(parent_spec)
+    fml <- stats::as.formula(paste(roles$outcome, "~", roles$group))
+
+    es <- effectsize::rank_epsilon_squared(fml, data = dat, ci = ci)
+
+    estimate <- es[[1]]
+    ci_low <- if (!is.null(ci) && "CI_low" %in% names(es)) es$CI_low else NA_real_
+    ci_high <- if (!is.null(ci) && "CI_high" %in% names(es)) es$CI_high else NA_real_
+
+    return(tibble::tibble(
+      effect = roles$group,
+      type = "epsilon2",
+      estimate = estimate,
+      conf.low = ci_low,
+      conf.high = ci_high
+    ))
+  }
+
   # --- ANOVA families via effectsize (model-based; no raw data needed) ---
   if (
     type %in%
@@ -518,8 +549,10 @@ effects <- function(
   # --- Friedman: Kendall's W from raw data (no stat conversions) ---
   if (
     type == "kendalls_w" &&
-      inherits(model, "friedman.test") &&
-      !is.null(parent_spec)
+      inherits(model, "htest") &&
+      !is.null(parent_spec) &&
+      (parent_spec$engine == "friedman" ||
+        grepl("Friedman", model$method, ignore.case = TRUE))
   ) {
     if (!rlang::is_installed("effectsize")) {
       stop("Package 'effectsize' is required for Kendall's W.", call. = FALSE)
@@ -553,7 +586,7 @@ effects <- function(
   }
   if (
     type == "kendalls_w" &&
-      inherits(model, "friedman.test") &&
+      inherits(model, "htest") &&
       is.null(parent_spec)
   ) {
     stop(
