@@ -8,7 +8,7 @@ effects(
   x,
   type = c("auto", "ges", "pes", "eta2", "omega2", "epsilon2", "d", "g", "rank_biserial",
     "kendalls_w", "r2"),
-  ci = NULL
+  ci = 0.95
 )
 }
 \arguments{
@@ -20,7 +20,8 @@ an engine-/class-based default. Supported values: \code{"ges"}, \code{"pes"},
 \code{"eta2"}, \code{"omega2"}, \code{"epsilon2"}, \code{"d"}, \code{"g"},
 \code{"rank_biserial"}, \code{"kendalls_w"}, \code{"r2"}.}
 
-\item{ci}{Optional confidence level (e.g., \code{0.90}); \code{NULL} for none.}
+\item{ci}{Confidence level (e.g., \code{0.90}); \code{NULL} for none. Defaults to
+\code{0.95}.}
 }
 \value{
 If \code{x} is a spec, the updated spec with \code{$effects};
