@@ -24,7 +24,7 @@ Default is \code{FALSE}.}
 }
 \value{
 The updated model specification object with preferences stored in
-\code{$meta$effects$args}.
+\code{$effects_args}.
 }
 \description{
 Records preferences for effect size computation to be used later by

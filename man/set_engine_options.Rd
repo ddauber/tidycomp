@@ -17,7 +17,7 @@ engine function via \code{meta$engine$args}.}
 }
 \value{
 An updated model specification object with engine-specific
-options stored in \code{$meta$engine$args}.
+options stored in \code{$engine_args}.
 }
 \description{
 Updates the engine configuration for a model specification with
@@ -36,7 +36,7 @@ spec <- comp_spec(mtcars) |>
   set_engine("anova_repeated") |>
   set_engine_options(correction = "none", return_df = "uncorrected")
 
-spec$meta$engine$args
+spec$engine_args
 
 }
 \seealso{
