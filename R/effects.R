@@ -1,200 +1,601 @@
-#' Add an effect size to a fitted comparison
+# #' Add an effect size to a fitted comparison
+# #'
+# #' Compute an effect size (with a confidence interval) for a numeric outcome
+# #' based on the inferential engine stored in `spec$fitted$engine`. Supported
+# #' tests map to the following default metrics:
+# #'
+# #' - `"student_t"`: Cohen's *d*
+# #' - `"welch_t"`: Hedges' *g*
+# #' - `"mann_whitney"`: Wilcoxon *r* (rank biserial)
+# #' - `"paired_t"`: Cohen's *d* for paired samples
+# #' - `"wilcoxon_signed_rank"`: Wilcoxon *r* (rank biserial)
+# #' - `"anova_oneway_equal"`: Eta squared
+# #' - `"anova_oneway_welch"`: Omega squared
+# #' - `"kruskal_wallis"`: Rank-based epsilon squared
+# #' - `"anova_repeated"`: Partial eta squared
+# #' - `"friedman"`: Kendall's *W*
+# #'
+# #' The function reads from `spec$fitted` and writes `es_value`,
+# #' `es_conf_low`, `es_conf_high`, and `es_metric` before returning `spec`.
+# #'
+# #' @param spec A `comp_spec` created by [comp_spec()] and already fitted
+# #'   via `test()` (i.e., `spec$fitted` must exist). Roles must include a
+# #'   numeric outcome and a grouping variable.
+# #' @param conf_level Confidence level for the interval (numeric in (0, 1),
+# #'   default `0.95`).
+# #' @param effect Optional name of an effect size function from the
+# #'   **effectsize** package. The default (`"default"`) selects a sensible
+# #'   metric for the chosen engine. Any exported function from **effectsize**
+# #'   (e.g., `"cohens_d"`, `"omega_squared"`) may be provided.
+# #'
+# #' @details
+# #' - Supported designs: two-group and multi-group comparisons with a
+# #'   **numeric** outcome.
+# #' - Backend functions from the
+# #'   [`effectsize`](https://easystats.github.io/effectsize/) package
+# #'   (e.g., `hedges_g()`, `cohens_d()`, `rank_biserial()`).
+# #' - If the **effectsize** package is not installed, a warning is issued
+# #'   and the input `spec` is returned unchanged.
+# #'
+# #' The function selects `spec$data_prepared` when available, otherwise
+# #' falls back to `spec$data_raw`. It standardizes inputs internally and
+# #' then calls the appropriate effect size function based on
+# #' `spec$fitted$engine`.
+# #'
+# #' @return The input `spec`, updated in place with effect‑size fields in
+# #'   `spec$fitted`: `es_value`, `es_conf_low`, `es_conf_high`, `es_metric`.
+# #'
+# #' @seealso [comp_spec()], diagnose(), test()
+# #'
+# #' @examples
+# #' # Minimal workflow (illustrative):
+# #' spec <- comp_spec(mtcars)
+# #' spec$roles <- list(outcome = "mpg", group = "am")  # am has two levels
+# #' spec$outcome_type <- "numeric"
+# #'
+# #' # Pretend we've run the inferential test step that creates `spec$fitted`
+# #' # (your package's `test()` function). Then add effect size:
+# #' # spec <- test(spec)
+# #' # spec <- effects(spec, conf_level = 0.90)
+# #' #
+# #' # Access results:
+# #' # spec$fitted$es_value
+# #' # spec$fitted$es_conf_low
+# #' # spec$fitted$es_conf_high
+# #' # spec$fitted$es_metric
+# #'
+# #' @export
+# effects <- function(spec, conf_level = 0.95, effect = "default") {
+#   stopifnot(inherits(spec, "comp_spec"))
+#   if (is.null(spec$fitted)) {
+#     cli::cli_abort("Run `test()` before `effects()`.")
+#   }
+#   if (!.has_effectsize()) {
+#     cli::cli_warn(
+#       "Package {.pkg effectsize} not installed; skipping effect size.",
+#       pkg = "effectsize"
+#     )
+#     return(spec)
+#   }
+
+#   data <- spec$data_prepared %||% spec$data_raw
+#   engine <- spec$fitted$engine %||% ""
+
+#   default_map <- list(
+#     student_t = "cohens_d",
+#     welch_t = "hedges_g",
+#     mann_whitney = "rank_biserial",
+#     paired_t = "cohens_d",
+#     wilcoxon_signed_rank = "rank_biserial",
+#     anova_oneway_equal = "eta_squared",
+#     anova_oneway_welch = "omega_squared",
+#     kruskal_wallis = "rank_epsilon_squared",
+#     anova_repeated = "eta_squared",
+#     anova_repeated_base = "eta_squared",
+#     friedman = "kendalls_w"
+#   )
+
+#   effect <- effect %||% "default"
+#   if (identical(effect, "default")) {
+#     effect <- default_map[[engine]] %||% "hedges_g"
+#     if (is.null(default_map[[engine]])) {
+#       cli::cli_warn("Unknown engine; defaulting to Hedges' g.")
+#     }
+#   }
+
+#   if (!effect %in% getNamespaceExports("effectsize")) {
+#     cli::cli_abort("Unknown effect size `{effect}` from package 'effectsize'.")
+#   }
+
+#   if (identical(spec$design, "paired")) {
+#     df <- .standardize_paired_numeric(
+#       data,
+#       spec$roles$outcome,
+#       spec$roles$group,
+#       spec$roles$id
+#     )
+#     g <- names(df)
+#     args <- list(df[[g[2]]], df[[g[1]]], paired = TRUE, ci = conf_level)
+#   } else if (
+#     engine %in% c("anova_oneway_equal", "anova_oneway_welch", "kruskal_wallis")
+#   ) {
+#     df <- .standardize_multi_group_numeric(
+#       data,
+#       spec$roles$outcome,
+#       spec$roles$group
+#     )
+#     if (engine == "kruskal_wallis") {
+#       args <- list(outcome ~ group, data = df, ci = conf_level)
+#     } else {
+#       fit <- switch(
+#         engine,
+#         anova_oneway_equal = stats::aov(outcome ~ group, data = df),
+#         anova_oneway_welch = stats::oneway.test(outcome ~ group, data = df)
+#       )
+#       args <- list(fit, ci = conf_level)
+#     }
+#   } else if (
+#     engine %in% c("anova_repeated", "anova_repeated_base", "friedman")
+#   ) {
+#     df <- .standardize_repeated_numeric(
+#       data,
+#       spec$roles$outcome,
+#       spec$roles$group,
+#       spec$roles$id
+#     )
+#     if (engine %in% c("anova_repeated", "anova_repeated_base")) {
+#       fit <- stats::aov(outcome ~ group + Error(id / group), data = df)
+#       args <- list(fit, partial = TRUE, ci = conf_level)
+#     } else {
+#       args <- list(outcome ~ group | id, data = df, ci = conf_level)
+#     }
+#   } else {
+#     df <- .standardize_two_group_numeric(
+#       data,
+#       spec$roles$outcome,
+#       spec$roles$group
+#     )
+#     args <- list(outcome ~ group, data = df, ci = conf_level)
+#   }
+
+#   effect_fun <- switch(
+#     effect,
+#     cohens_d = effectsize::cohens_d,
+#     hedges_g = effectsize::hedges_g,
+#     rank_biserial = effectsize::rank_biserial,
+#     eta_squared = effectsize::eta_squared,
+#     omega_squared = effectsize::omega_squared,
+#     rank_epsilon_squared = effectsize::rank_epsilon_squared,
+#     kendalls_w = effectsize::kendalls_w,
+#     getExportedValue("effectsize", effect)
+#   )
+
+#   out <- if (engine %in% c("anova_repeated", "anova_repeated_base")) {
+#     suppressWarnings(do.call(effect_fun, args))
+#   } else {
+#     do.call(effect_fun, args)
+#   }
+
+#   if (engine %in% c("anova_repeated", "anova_repeated_base")) {
+#     out <- out[out$Group == "Within", , drop = FALSE]
+#     out <- out[, c("Eta2_partial", "CI_low", "CI_high"), drop = FALSE]
+#   }
+
+#   metric <- names(out)[1]
+#   if (metric == "Parameter") {
+#     metric <- names(out)[2]
+#     out <- out[, c(metric, "CI_low", "CI_high"), drop = FALSE]
+#   }
+#   if (metric == "r_rank_biserial") {
+#     metric <- "r_Wilcoxon"
+#   }
+#   if (metric == "rank_epsilon_squared") {
+#     metric <- "Epsilon2"
+#   }
+
+#   spec$fitted$es_value <- unname(out[[1]])
+#   spec$fitted$es_conf_low <- out$CI_low %||% NA_real_
+#   spec$fitted$es_conf_high <- out$CI_high %||% NA_real_
+#   spec$fitted$es_metric <- metric
+#   cli::cli_inform("Effect size added: {metric}.")
+#   spec
+# }
+
+# #' Set effect size options
+# #'
+# #' Records preferences for effect size computation to be used later by
+# #' \code{\link{effects}()}.
+# #'
+# #' @param x A model specification object created with \code{\link{comp_spec}()}.
+# #' @param type Effect size type to compute. Use \code{"auto"} to select the
+# #'   engine's recommended default (e.g., "ges" for repeated-measures ANOVA).
+# #' @param ci Optional confidence interval level (e.g., 0.90). Use \code{NULL}
+# #'   to skip confidence intervals.
+# #' @param ... Reserved for future options; ignored currently.
+# #'
+# #' @return The updated model specification object with effect size preferences
+# #'   stored in \code{$meta$effects$args}.
+# #'
+# #' @seealso \code{\link{effects}}, \code{\link{set_engine}}, \code{\link{set_engine_options}}
+# #' @examples
+# #' spec <- comp_spec(mtcars) |>
+# #'   set_roles(outcome = mpg, group = cyl) |>
+# #'   set_engine("anova_repeated") |>
+# #'   set_effects(type = "ges", ci = 0.90)
+# #'
+# #' # Later:
+# #' effects(spec)  # computes effect sizes according to stored settings
+# #' @export
+# set_effects <- function(x, type = "auto", ci = NULL, ...) {
+#   x$meta$effects$args <- utils::modifyList(
+#     x$meta$effects$args %||% list(),
+#     list(type = type, ci = ci)
+#   )
+#   x
+# }
+
+# effects.R NEW ---------------------------------------------------------------
+
+#' Set effect size options
 #'
-#' Compute an effect size (with a confidence interval) for a numeric outcome
-#' based on the inferential engine stored in `spec$fitted$engine`. Supported
-#' tests map to the following default metrics:
+#' Records preferences for effect size computation to be used later by
+#' \code{\link{effects}()}.
 #'
-#' - `"student_t"`: Cohen's *d*
-#' - `"welch_t"`: Hedges' *g*
-#' - `"mann_whitney"`: Wilcoxon *r* (rank biserial)
-#' - `"paired_t"`: Cohen's *d* for paired samples
-#' - `"wilcoxon_signed_rank"`: Wilcoxon *r* (rank biserial)
-#' - `"anova_oneway_equal"`: Eta squared
-#' - `"anova_oneway_welch"`: Omega squared
-#' - `"kruskal_wallis"`: Rank-based epsilon squared
-#' - `"anova_repeated"`: Partial eta squared
-#' - `"friedman"`: Kendall's *W*
-#'
-#' The function reads from `spec$fitted` and writes `es_value`,
-#' `es_conf_low`, `es_conf_high`, and `es_metric` before returning `spec`.
-#'
-#' @param spec A `comp_spec` created by [comp_spec()] and already fitted
-#'   via `test()` (i.e., `spec$fitted` must exist). Roles must include a
-#'   numeric outcome and a grouping variable.
-#' @param conf_level Confidence level for the interval (numeric in (0, 1),
-#'   default `0.95`).
-#' @param effect Optional name of an effect size function from the
-#'   **effectsize** package. The default (`"default"`) selects a sensible
-#'   metric for the chosen engine. Any exported function from **effectsize**
-#'   (e.g., `"cohens_d"`, `"omega_squared"`) may be provided.
-#'
-#' @details
-#' - Supported designs: two-group and multi-group comparisons with a
-#'   **numeric** outcome.
-#' - Backend functions from the
-#'   [`effectsize`](https://easystats.github.io/effectsize/) package
-#'   (e.g., `hedges_g()`, `cohens_d()`, `rank_biserial()`).
-#' - If the **effectsize** package is not installed, a warning is issued
-#'   and the input `spec` is returned unchanged.
-#'
-#' The function selects `spec$data_prepared` when available, otherwise
-#' falls back to `spec$data_raw`. It standardizes inputs internally and
-#' then calls the appropriate effect size function based on
-#' `spec$fitted$engine`.
-#'
-#' @return The input `spec`, updated in place with effect‑size fields in
-#'   `spec$fitted`: `es_value`, `es_conf_low`, `es_conf_high`, `es_metric`.
-#'
-#' @seealso [comp_spec()], diagnose(), test()
-#'
-#' @examples
-#' # Minimal workflow (illustrative):
-#' spec <- comp_spec(mtcars)
-#' spec$roles <- list(outcome = "mpg", group = "am")  # am has two levels
-#' spec$outcome_type <- "numeric"
-#'
-#' # Pretend we've run the inferential test step that creates `spec$fitted`
-#' # (your package's `test()` function). Then add effect size:
-#' # spec <- test(spec)
-#' # spec <- effects(spec, conf_level = 0.90)
-#' #
-#' # Access results:
-#' # spec$fitted$es_value
-#' # spec$fitted$es_conf_low
-#' # spec$fitted$es_conf_high
-#' # spec$fitted$es_metric
-#'
+#' @param x A model specification object created with \code{\link{comp_spec}()}.
+#' @param type Effect size type to compute. Use \code{"auto"} to select the
+#'   engine's recommended default (e.g., "ges" for repeated-measures ANOVA).
+#'   Supported values include: \code{"ges"}, \code{"pes"}, \code{"eta2"},
+#'   \code{"omega2"}, \code{"epsilon2"}, \code{"d"}, \code{"g"},
+#'   \code{"rank_biserial"}, \code{"kendalls_w"}, \code{"r2"}.
+#' @param ci Optional confidence interval level (e.g., 0.90). Use \code{NULL}
+#'   to skip confidence intervals.
+#' @param compute Logical; if \code{TRUE}, \code{\link{test}()} will compute
+#'   effect sizes automatically (by calling \code{effects()}) after the test.
+#'   Default is \code{FALSE}.
+#' @return The updated model specification object with preferences stored in
+#'   \code{$meta$effects$args}.
+#' @seealso \code{\link{effects}}, \code{\link{set_engine}}, \code{\link{set_engine_options}}, \code{\link{test}}
 #' @export
-effects <- function(spec, conf_level = 0.95, effect = "default") {
-  stopifnot(inherits(spec, "comp_spec"))
-  if (is.null(spec$fitted)) {
-    cli::cli_abort("Run `test()` before `effects()`.")
-  }
-  if (!.has_effectsize()) {
-    cli::cli_warn(
-      "Package {.pkg effectsize} not installed; skipping effect size.",
-      pkg = "effectsize"
-    )
-    return(spec)
-  }
-
-  data <- spec$data_prepared %||% spec$data_raw
-  engine <- spec$fitted$engine %||% ""
-
-  default_map <- list(
-    student_t = "cohens_d",
-    welch_t = "hedges_g",
-    mann_whitney = "rank_biserial",
-    paired_t = "cohens_d",
-    wilcoxon_signed_rank = "rank_biserial",
-    anova_oneway_equal = "eta_squared",
-    anova_oneway_welch = "omega_squared",
-    kruskal_wallis = "rank_epsilon_squared",
-    anova_repeated = "eta_squared",
-    anova_repeated_base = "eta_squared",
-    friedman = "kendalls_w"
+set_effects <- function(x, type = "auto", ci = NULL, compute = FALSE) {
+  x$meta$effects$args <- utils::modifyList(
+    x$meta$effects$args %||% list(),
+    list(type = type, ci = ci, compute = compute)
   )
+  x
+}
 
-  effect <- effect %||% "default"
-  if (identical(effect, "default")) {
-    effect <- default_map[[engine]] %||% "hedges_g"
-    if (is.null(default_map[[engine]])) {
-      cli::cli_warn("Unknown engine; defaulting to Hedges' g.")
-    }
-  }
+#' Compute and store effect sizes
+#'
+#' Computes effect sizes for the fitted model and stores them on the spec.
+#' Works on a spec (will call \code{test()} if needed) or a fitted result
+#' (with an attached model). If no effect-size options were set with
+#' \code{set_effects()}, defaults are chosen automatically based on engine
+#' and/or model class.
+#'
+#' For non-ANOVA tests (t, Wilcoxon, Friedman), this function computes effect
+#' sizes from the original data and roles (no conversion from test statistics).
+#' Therefore, you must call \code{effects()} on a \emph{spec} for those models.
+#'
+#' @param x A spec produced by \code{comp_spec()} (optionally already tested),
+#'   or a fitted result with an attached model (i.e., \code{attr(x, "model")}).
+#' @param type Effect size type. Use \code{"auto"} to let the function choose
+#'   an engine-/class-based default. Supported values: \code{"ges"}, \code{"pes"},
+#'   \code{"eta2"}, \code{"omega2"}, \code{"epsilon2"}, \code{"d"}, \code{"g"},
+#'   \code{"rank_biserial"}, \code{"kendalls_w"}, \code{"r2"}.
+#' @param ci Optional confidence level (e.g., \code{0.90}); \code{NULL} for none.
+#' @return If \code{x} is a spec, the updated spec with \code{$effects};
+#'   otherwise a tibble of effect sizes.
+#' @export
+effects <- function(
+  x,
+  type = c(
+    "auto",
+    "ges",
+    "pes",
+    "eta2",
+    "omega2",
+    "epsilon2",
+    "d",
+    "g",
+    "rank_biserial",
+    "kendalls_w",
+    "r2"
+  ),
+  ci = NULL
+) {
+  type <- match.arg(type)
+  is_spec <- !is.null(x$meta)
 
-  if (!effect %in% getNamespaceExports("effectsize")) {
-    cli::cli_abort("Unknown effect size `{effect}` from package 'effectsize'.")
-  }
-
-  if (identical(spec$design, "paired")) {
-    df <- .standardize_paired_numeric(
-      data,
-      spec$roles$outcome,
-      spec$roles$group,
-      spec$roles$id
-    )
-    g <- names(df)
-    args <- list(df[[g[2]]], df[[g[1]]], paired = TRUE, ci = conf_level)
-  } else if (
-    engine %in% c("anova_oneway_equal", "anova_oneway_welch", "kruskal_wallis")
+  # ensure fitted model exists for specs
+  if (
+    is_spec && (is.null(x$fitted) || is.null(attr(x$fitted, "model", TRUE)))
   ) {
-    df <- .standardize_multi_group_numeric(
-      data,
-      spec$roles$outcome,
-      spec$roles$group
-    )
-    if (engine == "kruskal_wallis") {
-      args <- list(outcome ~ group, data = df, ci = conf_level)
-    } else {
-      fit <- switch(
-        engine,
-        anova_oneway_equal = stats::aov(outcome ~ group, data = df),
-        anova_oneway_welch = stats::oneway.test(outcome ~ group, data = df)
-      )
-      args <- list(fit, ci = conf_level)
-    }
-  } else if (engine %in% c("anova_repeated", "anova_repeated_base", "friedman")) {
-    df <- .standardize_repeated_numeric(
-      data,
-      spec$roles$outcome,
-      spec$roles$group,
-      spec$roles$id
-    )
-    if (engine %in% c("anova_repeated", "anova_repeated_base")) {
-      fit <- stats::aov(outcome ~ group + Error(id / group), data = df)
-      args <- list(fit, partial = TRUE, ci = conf_level)
-    } else {
-      args <- list(outcome ~ group | id, data = df, ci = conf_level)
-    }
-  } else {
-    df <- .standardize_two_group_numeric(
-      data,
-      spec$roles$outcome,
-      spec$roles$group
-    )
-    args <- list(outcome ~ group, data = df, ci = conf_level)
+    x <- test(x)
   }
 
-  effect_fun <- switch(
-    effect,
-    cohens_d = effectsize::cohens_d,
-    hedges_g = effectsize::hedges_g,
-    rank_biserial = effectsize::rank_biserial,
-    eta_squared = effectsize::eta_squared,
-    omega_squared = effectsize::omega_squared,
-    rank_epsilon_squared = effectsize::rank_epsilon_squared,
-    kendalls_w = effectsize::kendalls_w,
-    getExportedValue("effectsize", effect)
+  fitted <- if (is_spec) x$fitted else x
+  mod <- attr(fitted, "model", exact = TRUE)
+  if (is.null(mod)) {
+    stop("No attached model found; cannot compute effect sizes.", call. = FALSE)
+  }
+
+  # read stored defaults from set_effects(), if any
+  user_args <- if (is_spec) (x$meta$effects$args %||% list()) else list()
+  type_arg <- user_args$type %||% NULL
+  ci_arg <- user_args$ci %||% NULL
+
+  # resolve final arguments: call args > stored defaults > auto heuristic
+  final_type <- if (!identical(type, "auto")) type else (type_arg %||% "auto")
+  final_ci <- if (!is.null(ci)) ci else ci_arg
+
+  if (identical(final_type, "auto")) {
+    final_type <- .default_effect_type(x, fitted, mod)
+  }
+
+  # compute
+  out <- .compute_effects(
+    model = mod,
+    type = final_type,
+    ci = final_ci,
+    parent_spec = if (is_spec) x else NULL
   )
 
-  out <- if (engine %in% c("anova_repeated", "anova_repeated_base")) {
-    suppressWarnings(do.call(effect_fun, args))
+  if (is_spec) {
+    # persist resolved settings and attach results
+    x$meta$effects$args <- utils::modifyList(
+      x$meta$effects$args %||% list(),
+      list(type = final_type, ci = final_ci)
+    )
+    x$effects <- out
+    return(x)
   } else {
-    do.call(effect_fun, args)
+    attr(out, "model") <- mod
+    return(out)
+  }
+}
+
+# choose default ES type: engine hint first, then model class
+.default_effect_type <- function(spec_or_fit, fitted, model) {
+  eng <- tryCatch(spec_or_fit$meta$engine$name, error = function(...) NULL)
+  if (!is.null(eng)) {
+    eng_default <- switch(
+      eng,
+      "anova_repeated" = "ges",
+      "anova_between" = "omega2",
+      "t_test" = "d",
+      "wilcoxon" = "rank_biserial",
+      "friedman" = "kendalls_w",
+      "glm" = "r2",
+      NULL
+    )
+    if (!is.null(eng_default)) return(eng_default)
+  }
+  cls <- class(model)
+  if (any(c("afex_aov", "Anova.mlm", "aovlist") %in% cls)) {
+    return("ges")
+  }
+  if (any(c("aov", "lm") %in% cls)) {
+    return("omega2")
+  }
+  if (any("glm" %in% cls)) {
+    return("r2")
+  }
+  if (inherits(model, "htest") && !is.null(model$statistic[["t"]])) {
+    return("d")
+  }
+  if (inherits(model, "htest") && !is.null(model$statistic[["W"]])) {
+    return("rank_biserial")
+  }
+  if (inherits(model, "friedman.test")) {
+    return("kendalls_w")
+  }
+  "eta2"
+}
+
+# helpers to access data/roles from a spec
+.get_spec_data <- function(spec) spec$data
+.get_spec_roles <- function(spec) spec$meta$roles
+
+# core router: compute effect sizes using effectsize/performance ONLY from proper inputs
+.compute_effects <- function(model, type, ci, parent_spec = NULL) {
+  # --- ANOVA families via effectsize (model-based; no raw data needed) ---
+  if (
+    type %in%
+      c("ges", "pes", "eta2", "omega2", "epsilon2") ||
+      any(class(model) %in% c("afex_aov", "Anova.mlm", "aov", "aovlist", "lm"))
+  ) {
+    if (!rlang::is_installed("effectsize")) {
+      stop(
+        "Package 'effectsize' is required for ANOVA effect sizes.",
+        call. = FALSE
+      )
+    }
+
+    if (type == "omega2") {
+      es <- effectsize::omega_squared(model, ci = ci)
+      col <- "Omega2"
+    } else if (type == "epsilon2") {
+      es <- effectsize::epsilon_squared(model, ci = ci)
+      col <- "Epsilon2"
+    } else {
+      es <- effectsize::eta_squared(
+        model,
+        generalized = identical(type, "ges"),
+        partial = identical(type, "pes"),
+        ci = ci
+      )
+      col <- "Eta2"
+    }
+
+    # prefer the named within-factor 'group' if present; else first non-residual row
+    pick <- if ("Parameter" %in% names(es) && any(es$Parameter == "group")) {
+      which(es$Parameter == "group")[1]
+    } else {
+      which(!grepl("Residual", es$Parameter))[1]
+    }
+
+    return(tibble::tibble(
+      effect = es$Parameter[pick],
+      type = type,
+      estimate = es[[col]][pick],
+      conf.low = if (!is.null(ci) && "CI_low" %in% names(es)) {
+        es$CI_low[pick]
+      } else {
+        NA_real_
+      },
+      conf.high = if (!is.null(ci) && "CI_high" %in% names(es)) {
+        es$CI_high[pick]
+      } else {
+        NA_real_
+      }
+    ))
   }
 
-  if (engine %in% c("anova_repeated", "anova_repeated_base")) {
-    out <- out[out$Group == "Within", , drop = FALSE]
-    out <- out[, c("Eta2_partial", "CI_low", "CI_high"), drop = FALSE]
+  # --- t tests: Cohen's d / Hedges' g from raw data & roles (no stat conversions) ---
+  if (
+    type %in% c("d", "g") && inherits(model, "htest") && !is.null(parent_spec)
+  ) {
+    if (!rlang::is_installed("effectsize")) {
+      stop(
+        "Package 'effectsize' is required for Cohen's d / Hedges' g.",
+        call. = FALSE
+      )
+    }
+
+    dat <- .get_spec_data(parent_spec)
+    roles <- .get_spec_roles(parent_spec)
+    fml <- stats::as.formula(paste(roles$outcome, "~", roles$group))
+
+    d <- effectsize::cohens_d(
+      fml,
+      data = dat,
+      ci = ci,
+      hedges.correction = identical(type, "g"),
+      paired = !is.null(roles$id)
+    )
+
+    est <- if ("Hedges_g" %in% names(d)) d$Hedges_g else d$Cohens_d
+    return(tibble::tibble(
+      effect = roles$group,
+      type = type,
+      estimate = est,
+      conf.low = if (!is.null(ci)) d$CI_low else NA_real_,
+      conf.high = if (!is.null(ci)) d$CI_high else NA_real_
+    ))
+  }
+  if (
+    type %in% c("d", "g") && inherits(model, "htest") && is.null(parent_spec)
+  ) {
+    stop(
+      "Cohen's d/g require the original data and roles; call effects() on a spec.",
+      call. = FALSE
+    )
   }
 
-  metric <- names(out)[1]
-  if (metric == "Parameter") {
-    metric <- names(out)[2]
-    out <- out[, c(metric, "CI_low", "CI_high"), drop = FALSE]
+  # --- Wilcoxon / Mann–Whitney: rank-biserial from raw data (no stat conversions) ---
+  if (
+    type == "rank_biserial" && inherits(model, "htest") && !is.null(parent_spec)
+  ) {
+    if (!rlang::is_installed("effectsize")) {
+      stop("Package 'effectsize' is required for rank-biserial.", call. = FALSE)
+    }
+
+    dat <- .get_spec_data(parent_spec)
+    roles <- .get_spec_roles(parent_spec)
+    fml <- stats::as.formula(paste(roles$outcome, "~", roles$group))
+
+    rbs <- effectsize::rank_biserial(
+      fml,
+      data = dat,
+      ci = ci,
+      paired = !is.null(roles$id)
+    )
+
+    return(tibble::tibble(
+      effect = roles$group,
+      type = "rank_biserial",
+      estimate = rbs$Rank_biserial,
+      conf.low = if (!is.null(ci)) rbs$CI_low else NA_real_,
+      conf.high = if (!is.null(ci)) rbs$CI_high else NA_real_
+    ))
   }
-  if (metric == "r_rank_biserial") {
-    metric <- "r_Wilcoxon"
-  }
-  if (metric == "rank_epsilon_squared") {
-    metric <- "Epsilon2"
+  if (
+    type == "rank_biserial" && inherits(model, "htest") && is.null(parent_spec)
+  ) {
+    stop(
+      "Rank-biserial requires the original data and roles; call effects() on a spec.",
+      call. = FALSE
+    )
   }
 
-  spec$fitted$es_value <- unname(out[[1]])
-  spec$fitted$es_conf_low <- out$CI_low %||% NA_real_
-  spec$fitted$es_conf_high <- out$CI_high %||% NA_real_
-  spec$fitted$es_metric <- metric
-  cli::cli_inform("Effect size added: {metric}.")
-  spec
+  # --- Friedman: Kendall's W from raw data (no stat conversions) ---
+  if (
+    type == "kendalls_w" &&
+      inherits(model, "friedman.test") &&
+      !is.null(parent_spec)
+  ) {
+    if (!rlang::is_installed("effectsize")) {
+      stop("Package 'effectsize' is required for Kendall's W.", call. = FALSE)
+    }
+
+    dat <- .get_spec_data(parent_spec)
+    roles <- .get_spec_roles(parent_spec)
+    if (is.null(roles$id)) {
+      stop(
+        "Kendall's W for Friedman requires an 'id' role in the spec.",
+        call. = FALSE
+      )
+    }
+    fml <- stats::as.formula(paste(
+      roles$outcome,
+      "~",
+      roles$group,
+      "|",
+      roles$id
+    ))
+
+    kw <- effectsize::kendalls_w(fml, data = dat, ci = ci)
+
+    return(tibble::tibble(
+      effect = roles$group,
+      type = "kendalls_w",
+      estimate = kw$W,
+      conf.low = if (!is.null(ci)) kw$CI_low else NA_real_,
+      conf.high = if (!is.null(ci)) kw$CI_high else NA_real_
+    ))
+  }
+  if (
+    type == "kendalls_w" &&
+      inherits(model, "friedman.test") &&
+      is.null(parent_spec)
+  ) {
+    stop(
+      "Kendall's W requires the original data and roles; call effects() on a spec.",
+      call. = FALSE
+    )
+  }
+
+  # --- GLM / Mixed: model R2 ---
+  if (type == "r2" && (inherits(model, "glm") || inherits(model, "lmerMod"))) {
+    if (!rlang::is_installed("performance")) {
+      stop("Package 'performance' is required for R2 measures.", call. = FALSE)
+    }
+    r2 <- performance::r2(model)
+    return(tibble::tibble(
+      effect = "model",
+      type = "r2",
+      estimate = unname(r2$r2),
+      conf.low = NA_real_,
+      conf.high = NA_real_
+    ))
+  }
+
+  stop(
+    sprintf(
+      "No effect-size handler for model class: %s with type '%s'.",
+      paste(class(model), collapse = "/"),
+      type
+    ),
+    call. = FALSE
+  )
 }
