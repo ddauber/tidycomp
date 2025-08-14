@@ -11,7 +11,9 @@
 #' - `"wilcoxon_signed_rank"`: Wilcoxon *r* (rank biserial)
 #' - `"anova_oneway_equal"`: Eta squared
 #' - `"anova_oneway_welch"`: Omega squared
-#' - `"kruskal_wallis"`: Epsilon squared
+#' - `"kruskal_wallis"`: Rank-based epsilon squared
+#' - `"anova_repeated"`: Partial eta squared
+#' - `"friedman"`: Kendall's *W*
 #'
 #' The function reads from `spec$fitted` and writes `es_value`,
 #' `es_conf_low`, `es_conf_high`, and `es_metric` before returning `spec`.
@@ -87,7 +89,9 @@ effects <- function(spec, conf_level = 0.95, effect = "default") {
     wilcoxon_signed_rank = "rank_biserial",
     anova_oneway_equal = "eta_squared",
     anova_oneway_welch = "omega_squared",
-    kruskal_wallis = "epsilon_squared"
+    kruskal_wallis = "rank_epsilon_squared",
+    anova_repeated = "eta_squared",
+    friedman = "kendalls_w"
   )
 
   effect <- effect %||% "default"
@@ -117,13 +121,29 @@ effects <- function(spec, conf_level = 0.95, effect = "default") {
       spec$roles$outcome,
       spec$roles$group
     )
-    fit <- switch(
-      engine,
-      anova_oneway_equal = stats::aov(outcome ~ group, data = df),
-      anova_oneway_welch = stats::oneway.test(outcome ~ group, data = df),
-      kruskal_wallis = stats::kruskal.test(outcome ~ group, data = df)
+    if (engine == "kruskal_wallis") {
+      args <- list(outcome ~ group, data = df, ci = conf_level)
+    } else {
+      fit <- switch(
+        engine,
+        anova_oneway_equal = stats::aov(outcome ~ group, data = df),
+        anova_oneway_welch = stats::oneway.test(outcome ~ group, data = df)
+      )
+      args <- list(fit, ci = conf_level)
+    }
+  } else if (engine %in% c("anova_repeated", "friedman")) {
+    df <- .standardize_repeated_numeric(
+      data,
+      spec$roles$outcome,
+      spec$roles$group,
+      spec$roles$id
     )
-    args <- list(fit, ci = conf_level)
+    if (engine == "anova_repeated") {
+      fit <- stats::aov(outcome ~ group + Error(id / group), data = df)
+      args <- list(fit, partial = TRUE, ci = conf_level)
+    } else {
+      args <- list(outcome ~ group | id, data = df, ci = conf_level)
+    }
   } else {
     df <- .standardize_two_group_numeric(
       data,
@@ -134,11 +154,27 @@ effects <- function(spec, conf_level = 0.95, effect = "default") {
   }
 
   fun <- getExportedValue("effectsize", effect)
-  out <- do.call(fun, args)
+  out <- if (engine == "anova_repeated") {
+    suppressWarnings(do.call(fun, args))
+  } else {
+    do.call(fun, args)
+  }
+
+  if (engine == "anova_repeated") {
+    out <- out[out$Group == "Within", , drop = FALSE]
+    out <- out[, c("Eta2_partial", "CI_low", "CI_high"), drop = FALSE]
+  }
 
   metric <- names(out)[1]
+  if (metric == "Parameter") {
+    metric <- names(out)[2]
+    out <- out[, c(metric, "CI_low", "CI_high"), drop = FALSE]
+  }
   if (metric == "r_rank_biserial") {
     metric <- "r_Wilcoxon"
+  }
+  if (metric == "rank_epsilon_squared") {
+    metric <- "Epsilon2"
   }
 
   spec$fitted$es_value <- unname(out[[1]])
