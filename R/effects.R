@@ -253,12 +253,12 @@
 #'   effect sizes automatically (by calling \code{effects()}) after the test.
 #'   Default is \code{FALSE}.
 #' @return The updated model specification object with preferences stored in
-#'   \code{$meta$effects$args}.
+#'   \code{$effects_args}.
 #' @seealso \code{\link{effects}}, \code{\link{set_engine}}, \code{\link{set_engine_options}}, \code{\link{test}}
 #' @export
 set_effects <- function(x, type = "auto", ci = NULL, compute = FALSE) {
-  x$meta$effects$args <- utils::modifyList(
-    x$meta$effects$args %||% list(),
+  x$effects_args <- utils::modifyList(
+    x$effects_args %||% list(),
     list(type = type, ci = ci, compute = compute)
   )
   x
@@ -304,12 +304,9 @@ effects <- function(
   ci = NULL
 ) {
   type <- match.arg(type)
-  is_spec <- !is.null(x$meta)
+  is_spec <- inherits(x, "comp_spec")
 
-  # ensure fitted model exists for specs
-  if (
-    is_spec && (is.null(x$fitted) || is.null(attr(x$fitted, "model", TRUE)))
-  ) {
+  if (is_spec && (is.null(x$fitted) || is.null(attr(x$fitted, "model", TRUE)))) {
     x <- test(x)
   }
 
@@ -319,12 +316,10 @@ effects <- function(
     stop("No attached model found; cannot compute effect sizes.", call. = FALSE)
   }
 
-  # read stored defaults from set_effects(), if any
-  user_args <- if (is_spec) (x$meta$effects$args %||% list()) else list()
+  user_args <- if (is_spec) (x$effects_args %||% list()) else list()
   type_arg <- user_args$type %||% NULL
   ci_arg <- user_args$ci %||% NULL
 
-  # resolve final arguments: call args > stored defaults > auto heuristic
   final_type <- if (!identical(type, "auto")) type else (type_arg %||% "auto")
   final_ci <- if (!is.null(ci)) ci else ci_arg
 
@@ -332,7 +327,6 @@ effects <- function(
     final_type <- .default_effect_type(x, fitted, mod)
   }
 
-  # compute
   out <- .compute_effects(
     model = mod,
     type = final_type,
@@ -341,9 +335,8 @@ effects <- function(
   )
 
   if (is_spec) {
-    # persist resolved settings and attach results
-    x$meta$effects$args <- utils::modifyList(
-      x$meta$effects$args %||% list(),
+    x$effects_args <- utils::modifyList(
+      x$effects_args %||% list(),
       list(type = final_type, ci = final_ci)
     )
     x$effects <- out
@@ -356,19 +349,13 @@ effects <- function(
 
 # choose default ES type: engine hint first, then model class
 .default_effect_type <- function(spec_or_fit, fitted, model) {
-  eng <- tryCatch(spec_or_fit$meta$engine$name, error = function(...) NULL)
-  if (!is.null(eng)) {
-    eng_default <- switch(
-      eng,
-      "anova_repeated" = "ges",
-      "anova_between" = "omega2",
-      "t_test" = "d",
-      "wilcoxon" = "rank_biserial",
-      "friedman" = "kendalls_w",
-      "glm" = "r2",
-      NULL
-    )
-    if (!is.null(eng_default)) return(eng_default)
+  hint <- if (inherits(spec_or_fit, "comp_spec")) {
+    spec_or_fit$effects_hint
+  } else {
+    attr(fitted, "engine_hint", exact = TRUE)
+  }
+  if (!is.null(hint)) {
+    return(hint)
   }
   cls <- class(model)
   if (any(c("afex_aov", "Anova.mlm", "aovlist") %in% cls)) {
@@ -393,8 +380,8 @@ effects <- function(
 }
 
 # helpers to access data/roles from a spec
-.get_spec_data <- function(spec) spec$data
-.get_spec_roles <- function(spec) spec$meta$roles
+.get_spec_data <- function(spec) spec$data_prepared %||% spec$data_raw
+.get_spec_roles <- function(spec) spec$roles
 
 # core router: compute effect sizes using effectsize/performance ONLY from proper inputs
 .compute_effects <- function(model, type, ci, parent_spec = NULL) {

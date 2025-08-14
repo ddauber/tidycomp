@@ -255,3 +255,27 @@
 .has_effectsize <- function() {
   requireNamespace("effectsize", quietly = TRUE)
 }
+
+#' Map engine id to default effect size type
+#'
+#' @param engine Engine identifier
+#' @return Character string with default effect size type
+#' @keywords internal
+#' @noRd
+.engine_effect_hint <- function(engine) {
+  switch(
+    engine,
+    welch_t = "d",
+    student_t = "d",
+    mann_whitney = "rank_biserial",
+    paired_t = "d",
+    wilcoxon_signed_rank = "rank_biserial",
+    anova_oneway_equal = "omega2",
+    anova_oneway_welch = "omega2",
+    kruskal_wallis = "epsilon2",
+    anova_repeated = "ges",
+    anova_repeated_base = "ges",
+    friedman = "kendalls_w",
+    NULL
+  )
+}
