@@ -83,3 +83,46 @@ test_that("effects() works on a fitted result", {
   expect_s3_class(es, "tbl_df")
   expect_false(is.null(attr(es, "model")))
 })
+
+# paired designs --------------------------------------------------------------
+
+test_that("effects() computes Cohen's d for paired data", {
+  df <- tibble::tibble(
+    id = rep(1:4, each = 2),
+    group = rep(c("A", "B"), times = 4),
+    outcome = c(1, 2, 2, 4, 3, 6, 4, 8)
+  )
+
+  spec <- comp_spec(df) |>
+    set_roles(outcome = outcome, group = group, id = id) |>
+    set_design("paired") |>
+    set_outcome_type("numeric") |>
+    set_engine("paired_t") |>
+    test() |>
+    effects()
+
+  df_wide <- tidycomp:::.standardize_paired_numeric(df, "outcome", "group", "id")
+  g <- names(df_wide)
+  diffs <- df_wide[[g[2]]] - df_wide[[g[1]]]
+  manual_d <- mean(diffs) / stats::sd(diffs)
+
+  expect_equal(spec$effects$estimate, manual_d)
+})
+
+test_that("effects() computes rank-biserial for paired data", {
+  df <- tibble::tibble(
+    id = rep(1:4, each = 2),
+    group = rep(c("A", "B"), times = 4),
+    outcome = c(1, 2, 2, 4, 3, 6, 4, 8)
+  )
+
+  spec <- comp_spec(df) |>
+    set_roles(outcome = outcome, group = group, id = id) |>
+    set_design("paired") |>
+    set_outcome_type("numeric") |>
+    set_engine("wilcoxon_signed_rank") |>
+    test() |>
+    effects()
+
+  expect_equal(spec$effects$estimate, 1)
+})
