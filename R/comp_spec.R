@@ -57,7 +57,11 @@ comp_spec <- function(data) {
       engine = NULL,
       diagnostics = NULL,
       prep_log = tibble::tibble(),
-      fitted = NULL
+      fitted = NULL,
+      effects = NULL,
+      effects_args = list(),
+      effects_hint = NULL,
+      engine_args = list()
     ),
     class = "comp_spec"
   )
@@ -188,6 +192,7 @@ set_engine <- function(spec, engine) {
     ))
   }
   spec$engine <- engine
+  spec$effects_hint <- .engine_effect_hint(engine)
   cli::cli_inform("Engine set to `{engine}` (manual override).")
   spec
 }

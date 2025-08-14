@@ -146,6 +146,9 @@ test <- function(spec) {
     }
   }
 
+  spec$engine <- engine
+  spec$effects_hint <- .engine_effect_hint(engine)
+
   eng_fun <- .tidycomp_engines()[[engine]]
   if (is.null(eng_fun)) {
     cli::cli_abort("Selected engine `{engine}` not available.")
@@ -156,7 +159,13 @@ test <- function(spec) {
     meta = list(roles = spec$roles, diagnostics = spec$diagnostics)
   )
   class(res) <- c("comp_result", class(res))
+  attr(res, "engine_hint") <- spec$effects_hint
   spec$fitted <- res
   cli::cli_inform("Engine run: {engine}.")
+
+  if (isTRUE(spec$effects_args$compute)) {
+    spec <- effects(spec)
+  }
+
   spec
 }

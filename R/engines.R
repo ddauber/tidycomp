@@ -53,7 +53,7 @@
 #'   engine function via \code{meta$engine$args}.
 #'
 #' @return An updated model specification object with engine-specific
-#'   options stored in \code{$meta$engine$args}.
+#'   options stored in \code{$engine_args}.
 #'
 #' @seealso \code{\link{set_engine}}, \code{\link{test}}
 #' @examples
@@ -62,12 +62,12 @@
 #'   set_engine("anova_repeated") |>
 #'   set_engine_options(correction = "none", return_df = "uncorrected")
 #'
-#' spec$meta$engine$args
+#' spec$engine_args
 #'
 #' @export
 set_engine_options <- function(x, ...) {
-  x$meta$engine$args <- utils::modifyList(
-    x$meta$engine$args %||% list(),
+  x$engine_args <- utils::modifyList(
+    x$engine_args %||% list(),
     list(...)
   )
   x
@@ -102,7 +102,7 @@ engine_welch_t <- function(data, meta) {
     meta$roles$group
   )
   fit <- stats::t.test(outcome ~ group, data = df, var.equal = FALSE)
-  tibble::tibble(
+  res <- tibble::tibble(
     test = "t",
     method = "Welch t-test",
     engine = "welch_t",
@@ -116,6 +116,8 @@ engine_welch_t <- function(data, meta) {
     metric = "mean_diff",
     notes = list(meta$diagnostics$notes %||% character())
   )
+  attr(res, "model") <- fit
+  res
 }
 
 #' Student (equal-variance) t-test engine (internal)
@@ -144,7 +146,7 @@ engine_student_t <- function(data, meta) {
     meta$roles$group
   )
   fit <- stats::t.test(outcome ~ group, data = df, var.equal = TRUE)
-  tibble::tibble(
+  res <- tibble::tibble(
     test = "t",
     method = "Student's t-test",
     engine = "student_t",
@@ -158,6 +160,8 @@ engine_student_t <- function(data, meta) {
     metric = "mean_diff",
     notes = list(meta$diagnostics$notes %||% character())
   )
+  attr(res, "model") <- fit
+  res
 }
 
 #' Mann-Whitney (Wilcoxon rank-sum) engine (internal)
@@ -216,7 +220,7 @@ engine_mann_whitney <- function(data, meta) {
   ci_hi <- if (has_ci) unname(fit$conf.int[2]) else NA_real_
   clvl <- if (has_ci) unname(attr(fit$conf.int, "conf.level")) else conf_level
 
-  tibble::tibble(
+  res <- tibble::tibble(
     test = "wilcox",
     method = fit$method, # e.g., "Wilcoxon rank sum exact test"
     engine = "mann_whitney",
@@ -238,6 +242,8 @@ engine_mann_whitney <- function(data, meta) {
       }
     ))
   )
+  attr(res, "model") <- fit
+  res
 }
 
 #' Paired t-test engine (internal)
@@ -257,7 +263,7 @@ engine_paired_t <- function(data, meta) {
   )
   g <- names(df)
   fit <- stats::t.test(df[[g[2]]], df[[g[1]]], paired = TRUE)
-  tibble::tibble(
+  res <- tibble::tibble(
     test = "t",
     method = "Paired t-test",
     engine = "paired_t",
@@ -271,6 +277,8 @@ engine_paired_t <- function(data, meta) {
     metric = "mean_diff",
     notes = list(meta$diagnostics$notes %||% character())
   )
+  attr(res, "model") <- fit
+  res
 }
 
 #' Wilcoxon signed-rank engine (internal)
@@ -308,7 +316,7 @@ engine_wilcoxon_signed_rank <- function(data, meta) {
   ci_lo <- if (has_ci) unname(fit$conf.int[1]) else NA_real_
   ci_hi <- if (has_ci) unname(fit$conf.int[2]) else NA_real_
   clvl <- if (has_ci) unname(attr(fit$conf.int, "conf.level")) else conf_level
-  tibble::tibble(
+  res <- tibble::tibble(
     test = "wilcox_signed_rank",
     method = fit$method,
     engine = "wilcoxon_signed_rank",
@@ -330,6 +338,8 @@ engine_wilcoxon_signed_rank <- function(data, meta) {
       }
     ))
   )
+  attr(res, "model") <- fit
+  res
 }
 
 #' One-way ANOVA engine assuming equal variances (internal)
@@ -348,7 +358,7 @@ engine_anova_oneway_equal <- function(data, meta) {
     meta$roles$group
   )
   fit <- stats::oneway.test(outcome ~ group, data = df, var.equal = TRUE)
-  tibble::tibble(
+  res <- tibble::tibble(
     test = "anova",
     method = "One-way ANOVA",
     engine = "anova_oneway_equal",
@@ -363,6 +373,8 @@ engine_anova_oneway_equal <- function(data, meta) {
     metric = NA_character_,
     notes = list(meta$diagnostics$notes %||% character())
   )
+  attr(res, "model") <- fit
+  res
 }
 
 #' Welch's one-way ANOVA engine (internal)
@@ -381,7 +393,7 @@ engine_anova_oneway_welch <- function(data, meta) {
     meta$roles$group
   )
   fit <- stats::oneway.test(outcome ~ group, data = df, var.equal = FALSE)
-  tibble::tibble(
+  res <- tibble::tibble(
     test = "anova",
     method = "Welch's ANOVA",
     engine = "anova_oneway_welch",
@@ -396,6 +408,8 @@ engine_anova_oneway_welch <- function(data, meta) {
     metric = NA_character_,
     notes = list(meta$diagnostics$notes %||% character())
   )
+  attr(res, "model") <- fit
+  res
 }
 
 #' Kruskal-Wallis engine (internal)
@@ -414,7 +428,7 @@ engine_kruskal_wallis <- function(data, meta) {
     meta$roles$group
   )
   fit <- stats::kruskal.test(outcome ~ group, data = df)
-  tibble::tibble(
+  res <- tibble::tibble(
     test = "kruskal_wallis",
     method = "Kruskal-Wallis rank sum test",
     engine = "kruskal_wallis",
@@ -429,6 +443,8 @@ engine_kruskal_wallis <- function(data, meta) {
     metric = NA_character_,
     notes = list(meta$diagnostics$notes %||% character())
   )
+  attr(res, "model") <- fit
+  res
 }
 
 #' Repeated-measures ANOVA engine (base R fallback, internal)
@@ -458,7 +474,7 @@ engine_anova_repeated_base <- function(data, meta) {
     idx <- err_idx[length(err_idx)]
   }
   within <- summ[[idx]][[1]]
-  tibble::tibble(
+  res <- tibble::tibble(
     test = "anova_repeated",
     method = "Repeated measures ANOVA",
     engine = "anova_repeated_base",
@@ -473,6 +489,8 @@ engine_anova_repeated_base <- function(data, meta) {
     metric = NA_character_,
     notes = list(meta$diagnostics$notes %||% character())
   )
+  attr(res, "model") <- fit
+  res
 }
 
 
@@ -678,6 +696,7 @@ engine_anova_repeated <- function(data, meta) {
     res$notes <- lapply(res$notes, function(x) c(x, note))
   }
 
+  attr(res, "model") <- fit
   res
 }
 
@@ -781,7 +800,7 @@ engine_friedman <- function(data, meta) {
     meta$roles$id
   )
   fit <- stats::friedman.test(outcome ~ group | id, data = df)
-  tibble::tibble(
+  res <- tibble::tibble(
     test = "friedman",
     method = "Friedman rank sum test",
     engine = "friedman",
@@ -796,4 +815,6 @@ engine_friedman <- function(data, meta) {
     metric = NA_character_,
     notes = list(meta$diagnostics$notes %||% character())
   )
+  attr(res, "model") <- fit
+  res
 }
