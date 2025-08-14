@@ -482,15 +482,32 @@ effects <- function(
 
     dat <- .get_spec_data(parent_spec)
     roles <- .get_spec_roles(parent_spec)
-    fml <- stats::as.formula(paste(roles$outcome, "~", roles$group))
 
-    d <- effectsize::cohens_d(
-      fml,
-      data = dat,
-      ci = ci,
-      hedges.correction = identical(type, "g"),
-      paired = !is.null(roles$id)
-    )
+    d <- if (!is.null(roles$id)) {
+      df <- .standardize_paired_numeric(
+        dat,
+        roles$outcome,
+        roles$group,
+        roles$id
+      )
+      g <- names(df)
+      effectsize::cohens_d(
+        df[[g[2]]],
+        df[[g[1]]],
+        paired = TRUE,
+        ci = ci,
+        hedges.correction = identical(type, "g")
+      )
+    } else {
+      fml <- stats::as.formula(paste(roles$outcome, "~", roles$group))
+      effectsize::cohens_d(
+        fml,
+        data = dat,
+        ci = ci,
+        hedges.correction = identical(type, "g"),
+        paired = FALSE
+      )
+    }
 
     est <- if ("Hedges_g" %in% names(d)) d$Hedges_g else d$Cohens_d
     return(tibble::tibble(
@@ -520,14 +537,30 @@ effects <- function(
 
     dat <- .get_spec_data(parent_spec)
     roles <- .get_spec_roles(parent_spec)
-    fml <- stats::as.formula(paste(roles$outcome, "~", roles$group))
 
-    rbs <- effectsize::rank_biserial(
-      fml,
-      data = dat,
-      ci = ci,
-      paired = !is.null(roles$id)
-    )
+    rbs <- if (!is.null(roles$id)) {
+      df <- .standardize_paired_numeric(
+        dat,
+        roles$outcome,
+        roles$group,
+        roles$id
+      )
+      g <- names(df)
+      effectsize::rank_biserial(
+        df[[g[2]]],
+        df[[g[1]]],
+        paired = TRUE,
+        ci = ci
+      )
+    } else {
+      fml <- stats::as.formula(paste(roles$outcome, "~", roles$group))
+      effectsize::rank_biserial(
+        fml,
+        data = dat,
+        ci = ci,
+        paired = FALSE
+      )
+    }
 
     return(tibble::tibble(
       effect = roles$group,
