@@ -142,4 +142,4 @@ autoplot.comp_result <- function(
 
 
 # define global variables to avoid R CMD check warnings
-utils::globalVariables(c(".data", "label", "y", "ymin", "ymax", "n"))
+utils::globalVariables(c(".data", "label", "y", "ymin", "ymax", "n", ".id", ".g", ".y"))
