@@ -34,6 +34,46 @@
   )
 }
 
+#' Set engine-specific options
+#'
+#' Updates the engine configuration for a model specification with
+#' arguments that will be passed to the selected engine's internal
+#' function when \code{\link{test}()} is called.
+#'
+#' This helper allows users to supply parameters that are specific
+#' to the current engine (e.g., correction method, output format,
+#' or additional arguments for the underlying statistical function)
+#' without affecting other engines or the general API.
+#'
+#' @param x A model specification object created with
+#'   \code{\link{comp_spec}()} and configured with
+#'   \code{\link{set_engine}()}.
+#' @param ... Named arguments to add or update in the engine's
+#'   \code{args} list. These will be made available to the
+#'   engine function via \code{meta$engine$args}.
+#'
+#' @return An updated model specification object with engine-specific
+#'   options stored in \code{$meta$engine$args}.
+#'
+#' @seealso \code{\link{set_engine}}, \code{\link{test}}
+#' @examples
+#' spec <- comp_spec(mtcars) |>
+#'   set_roles(outcome = mpg, group = cyl) |>
+#'   set_engine("anova_repeated") |>
+#'   set_engine_options(correction = "none", return_df = "uncorrected")
+#'
+#' spec$meta$engine$args
+#'
+#' @export
+set_engine_options <- function(x, ...) {
+  x$meta$engine$args <- utils::modifyList(
+    x$meta$engine$args %||% list(),
+    list(...)
+  )
+  x
+}
+
+
 #' Welch two-sample t-test engine (internal)
 #'
 #' Perform a two-sample Welch *t*-test for a numeric outcome with two groups
@@ -435,17 +475,30 @@ engine_anova_repeated_base <- function(data, meta) {
   )
 }
 
+
 #' Repeated-measures ANOVA engine via afex (internal)
 #'
-#' Uses `afex::aov_ez()` and applies a Greenhouse-Geisser correction when
-#' Mauchly's test indicates sphericity violation. Falls back to the base
-#' implementation if the **afex** package is unavailable.
-#'
 #' @param data A data frame containing outcome, group, and id columns.
-#' @param meta A list with roles/diagnostics metadata.
+#' @param meta  A list with roles/diagnostics metadata.
+#' @param correction  "auto", "none", "GG", "HF", or "LB".
+#' @param return_df   What to return in the table: "auto", "uncorrected", "GG", "HF", "LB", or "all".
+#' @param afex_args   Named list of extra args passed to afex::aov_ez().
 #' @keywords internal
 #' @noRd
 engine_anova_repeated <- function(data, meta) {
+  args <- meta$engine$args %||% list()
+
+  correction <- args$correction %||% c("auto", "GG") # default behaviour
+  return_df <- args$return_df %||% "auto"
+  afex_args <- args$afex_args %||% list()
+
+  correction <- match.arg(correction[1], c("auto", "none", "GG", "HF", "LB"))
+  prefer_corr <- if (length(correction) > 1) correction[2] else "GG"
+  return_df <- match.arg(
+    return_df,
+    c("auto", "uncorrected", "GG", "HF", "LB", "all")
+  )
+
   df <- .standardize_repeated_numeric(
     data,
     meta$roles$outcome,
@@ -453,63 +506,264 @@ engine_anova_repeated <- function(data, meta) {
     meta$roles$id
   )
 
-  if (!rlang::is_installed("afex")) {
+  # Fallback if packages missing
+  if (!rlang::is_installed(c("afex", "performance"))) {
+    missing_pkgs <- c("afex", "performance")[
+      !rlang::is_installed(c("afex", "performance"))
+    ]
     cli::cli_warn(
-      "Package {.pkg afex} not installed; using stats::aov fallback.",
-      pkg = "afex"
+      "Package{?s} {.pkg {missing_pkgs}} not installed; using stats::aov fallback.",
+      pkg = missing_pkgs
     )
     return(engine_anova_repeated_base(data, meta))
   }
 
-  fit <- afex::aov_ez(
+  # ---- fit with afex ----------------------------------------------------
+  # Always compute with ES turned off (we compute ES elsewhere if needed)
+  base_args <- list(
     id = "id",
     dv = "outcome",
     within = "group",
     data = df,
-    anova_table = list(correction = "GG", es = "none")
+    anova_table = list(correction = "none", es = "none") # start uncorrected
   )
-
+  fit <- do.call(afex::aov_ez, utils::modifyList(base_args, afex_args))
   tab <- as.data.frame(fit$anova_table)
-  sp <- afex::check_sphericity(fit)
-  p_mauchly <- sp$tests["group", "p.value"]
 
-  stat <- unname(tab["group", "F"])
+  # Pull uncorrected stats once
+  F_val <- unname(tab["group", "F"])
   df1_raw <- unname(tab["group", "num Df"])
   df2_raw <- unname(tab["group", "den Df"])
+  p_raw <- unname(tab["group", "Pr(>F)"])
 
-  if (!is.na(p_mauchly) && p_mauchly < 0.05) {
-    eps <- sp$corrections["group", "GG eps"]
-    df1 <- df1_raw * eps
-    df2 <- df2_raw * eps
-    p_val <- if ("Pr(>F[GG])" %in% colnames(tab)) {
-      unname(tab["group", "Pr(>F[GG])"])
-    } else {
-      stats::pf(stat, df1, df2, lower.tail = FALSE)
-    }
-    note <- "Sphericity violated; Greenhouse-Geisser correction applied."
+  # Sphericity check (via performance)
+  sp <- performance::check_sphericity(fit)
+  # Extract Mauchly p for 'group'
+  p_mauchly <- tryCatch(
+    {
+      # works with data.frame output from performance
+      as.numeric(sp$p[
+        sp$Effect %in% c("group", "group (within)", "within: group")
+      ][1])
+    },
+    error = function(e) NA_real_
+  )
+
+  # Epsilons available in afex table
+  eps_GG <- if ("GG eps" %in% colnames(tab)) {
+    unname(tab["group", "GG eps"])
   } else {
-    df1 <- df1_raw
-    df2 <- df2_raw
-    p_val <- unname(tab["group", "Pr(>F)"])
-    note <- NULL
+    NA_real_
+  }
+  eps_HF <- if ("HF eps" %in% colnames(tab)) {
+    unname(tab["group", "HF eps"])
+  } else {
+    NA_real_
   }
 
-  tibble::tibble(
+  # Helper to build one row given a label + epsilon
+  make_row <- function(label, eps, p_col) {
+    if (is.na(eps)) {
+      return(NULL)
+    }
+    df1 <- df1_raw * eps
+    df2 <- df2_raw * eps
+    p <- if (!is.null(p_col) && p_col %in% colnames(tab)) {
+      unname(tab["group", p_col])
+    } else {
+      stats::pf(F_val, df1, df2, lower.tail = FALSE)
+    }
+    tibble::tibble(
+      test = "anova_repeated",
+      method = "Repeated measures ANOVA",
+      engine = "anova_repeated",
+      n_obs = nrow(df),
+      n_subjects = length(unique(df$id)),
+      statistic = F_val,
+      df1 = df1,
+      df2 = df2,
+      p.value = p,
+      estimate = NA_real_,
+      conf.low = NA_real_,
+      conf.high = NA_real_,
+      metric = label,
+      notes = list(c(
+        meta$diagnostics$notes %||% character(),
+        sprintf("Reported with %s correction.", label)
+      ))
+    )
+  }
+
+  # Always compute candidates
+  row_uncorr <- tibble::tibble(
     test = "anova_repeated",
     method = "Repeated measures ANOVA",
     engine = "anova_repeated",
-    n = nrow(df),
-    statistic = stat,
-    df1 = df1,
-    df2 = df2,
-    p.value = p_val,
+    n_obs = nrow(df),
+    n_subjects = length(unique(df$id)),
+    statistic = F_val,
+    df1 = df1_raw,
+    df2 = df2_raw,
+    p.value = p_raw,
     estimate = NA_real_,
     conf.low = NA_real_,
     conf.high = NA_real_,
-    metric = NA_character_,
-    notes = list(c(meta$diagnostics$notes %||% character(), note %||% character()))
+    metric = "uncorrected",
+    notes = list(c(meta$diagnostics$notes %||% character()))
   )
+  row_GG <- make_row("GG", eps_GG, "Pr(>F[GG])")
+  row_HF <- make_row("HF", eps_HF, "Pr(>F[HF])")
+
+  out_all <- dplyr::bind_rows(
+    row_uncorr,
+    row_GG %||% NULL,
+    row_HF %||% NULL
+  )
+
+  # Decide what to return
+  choose_auto <- function() {
+    if (!is.na(p_mauchly) && p_mauchly < 0.05) {
+      # sphericity violated -> use preferred correction if available
+      if (prefer_corr == "GG" && !is.null(row_GG)) {
+        return(out_all[out_all$metric == "GG", ])
+      }
+      if (prefer_corr == "HF" && !is.null(row_HF)) {
+        return(out_all[out_all$metric == "HF", ])
+      }
+      # fallback: whichever exists
+      return(out_all[out_all$metric %in% c("GG", "HF"), ][1, , drop = FALSE])
+    } else {
+      # sphericity OK -> uncorrected
+      return(out_all[out_all$metric == "uncorrected", ])
+    }
+  }
+
+  res <- switch(
+    return_df,
+    all = out_all,
+    uncorrected = out_all[out_all$metric == "uncorrected", ],
+    GG = out_all[out_all$metric == "GG", ],
+    HF = out_all[out_all$metric == "HF", ],
+    LB = {
+      # LB not available in afex table; compute if requested
+      # If you want LB, add a block similar to GG/HF using car::Anova(..., correction="LB")
+      cli::cli_warn(
+        "Lower-bound correction not implemented in this engine yet."
+      )
+      out_all[out_all$metric == "uncorrected", ]
+    },
+    auto = choose_auto()
+  )
+
+  # Add contextual note if we auto-selected
+  if (return_df == "auto") {
+    note <- if (!is.na(p_mauchly) && p_mauchly < 0.05) {
+      sprintf(
+        "Sphericity violated (Mauchly p = %.3g); %s correction reported.",
+        p_mauchly,
+        if (nrow(res) && res$metric[1] != "uncorrected") {
+          res$metric[1]
+        } else {
+          prefer_corr
+        }
+      )
+    } else if (!is.na(p_mauchly)) {
+      sprintf(
+        "Sphericity not violated (Mauchly p = %.3g); uncorrected results reported.",
+        p_mauchly
+      )
+    } else {
+      "Mauchly p could not be extracted; defaulting to uncorrected."
+    }
+    res$notes <- lapply(res$notes, function(x) c(x, note))
+  }
+
+  res
 }
+
+
+# #' Repeated-measures ANOVA engine via afex (internal)
+# #'
+# #' Uses `afex::aov_ez()` and applies a Greenhouse-Geisser correction when
+# #' Mauchly's test indicates sphericity violation. Falls back to the base
+# #' implementation if the **afex** package is unavailable.
+# #'
+# #' @param data A data frame containing outcome, group, and id columns.
+# #' @param meta A list with roles/diagnostics metadata.
+# #' @keywords internal
+# #' @noRd
+# engine_anova_repeated <- function(data, meta) {
+#   df <- .standardize_repeated_numeric(
+#     data,
+#     meta$roles$outcome,
+#     meta$roles$group,
+#     meta$roles$id
+#   )
+
+#   if (!rlang::is_installed(c("afex", "performance"))) {
+#     missing_pkgs <- c("afex", "performance")[
+#       !rlang::is_installed(c("afex", "performance"))
+#     ]
+#     cli::cli_warn(
+#       "Package{?s} {.pkg {missing_pkgs}} not installed; using stats::aov fallback.",
+#       pkg = missing_pkgs
+#     )
+#     return(engine_anova_repeated_base(data, meta))
+#   }
+
+#   fit <- afex::aov_ez(
+#     id = "id",
+#     dv = "outcome",
+#     within = "group",
+#     data = df,
+#     anova_table = list(correction = "GG", es = "none")
+#   )
+
+#   tab <- as.data.frame(fit$anova_table)
+
+#   sp <- performance::check_sphericity(fit)
+#   p_mauchly <- unname(sp["group"])
+
+#   stat <- unname(tab["group", "F"])
+#   df1_raw <- unname(tab["group", "num Df"])
+#   df2_raw <- unname(tab["group", "den Df"])
+
+#   if (!is.na(p_mauchly) && p_mauchly < 0.05) {
+#     eps <- unname(tab["group", "GG eps"])
+#     df1 <- df1_raw * eps
+#     df2 <- df2_raw * eps
+#     p_val <- if ("Pr(>F[GG])" %in% colnames(tab)) {
+#       unname(tab["group", "Pr(>F[GG])"])
+#     } else {
+#       stats::pf(stat, df1, df2, lower.tail = FALSE)
+#     }
+#     note <- "Sphericity violated; Greenhouse-Geisser correction applied."
+#   } else {
+#     df1 <- df1_raw
+#     df2 <- df2_raw
+#     p_val <- unname(tab["group", "Pr(>F)"])
+#     note <- NULL
+#   }
+
+#   tibble::tibble(
+#     test = "anova_repeated",
+#     method = "Repeated measures ANOVA",
+#     engine = "anova_repeated",
+#     n = nrow(df),
+#     statistic = stat,
+#     df1 = df1,
+#     df2 = df2,
+#     p.value = p_val,
+#     estimate = NA_real_,
+#     conf.low = NA_real_,
+#     conf.high = NA_real_,
+#     metric = NA_character_,
+#     notes = list(c(
+#       meta$diagnostics$notes %||% character(),
+#       note %||% character()
+#     ))
+#   )
+# }
 
 #' Friedman test engine (internal)
 #'

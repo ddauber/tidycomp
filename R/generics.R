@@ -147,6 +147,221 @@ autoplot.comp_result <- function(
   }
 }
 
+#' Repeated-measures ANOVA engine via afex (internal)
+#'
+#' @param data A data frame containing outcome, group, and id columns.
+#' @param meta  A list with roles/diagnostics metadata.
+#' @param correction  "auto", "none", "GG", "HF", or "LB".
+#' @param return_df   What to return in the table: "auto", "uncorrected", "GG", "HF", "LB", or "all".
+#' @param afex_args   Named list of extra args passed to afex::aov_ez().
+#' @keywords internal
+#' @noRd
+engine_anova_repeated <- function(
+  data,
+  meta,
+  correction = c("auto", "GG"), # second value = preferred correction in auto mode
+  return_df = c("auto"),
+  afex_args = list()
+) {
+  correction <- match.arg(correction[1], c("auto", "none", "GG", "HF", "LB"))
+  prefer_corr <- if (length(correction) > 1) correction[2] else "GG"
+  return_df <- match.arg(
+    return_df,
+    c("auto", "uncorrected", "GG", "HF", "LB", "all")
+  )
+
+  df <- .standardize_repeated_numeric(
+    data,
+    meta$roles$outcome,
+    meta$roles$group,
+    meta$roles$id
+  )
+
+  # Fallback if packages missing
+  if (!rlang::is_installed(c("afex", "performance"))) {
+    missing_pkgs <- c("afex", "performance")[
+      !rlang::is_installed(c("afex", "performance"))
+    ]
+    cli::cli_warn(
+      "Package{?s} {.pkg {missing_pkgs}} not installed; using stats::aov fallback.",
+      pkg = missing_pkgs
+    )
+    return(engine_anova_repeated_base(data, meta))
+  }
+
+  # ---- fit with afex ----------------------------------------------------
+  # Always compute with ES turned off (we compute ES elsewhere if needed)
+  base_args <- list(
+    id = "id",
+    dv = "outcome",
+    within = "group",
+    data = df,
+    anova_table = list(correction = "none", es = "none") # start uncorrected
+  )
+  fit <- do.call(afex::aov_ez, utils::modifyList(base_args, afex_args))
+  tab <- as.data.frame(fit$anova_table)
+
+  # Pull uncorrected stats once
+  F_val <- unname(tab["group", "F"])
+  df1_raw <- unname(tab["group", "num Df"])
+  df2_raw <- unname(tab["group", "den Df"])
+  p_raw <- unname(tab["group", "Pr(>F)"])
+
+  # Sphericity check (via performance)
+  sp <- performance::check_sphericity(fit)
+  # Extract Mauchly p for 'group'
+  p_mauchly <- tryCatch(
+    {
+      # works with data.frame output from performance
+      as.numeric(sp$p[
+        sp$Effect %in% c("group", "group (within)", "within: group")
+      ][1])
+    },
+    error = function(e) NA_real_
+  )
+
+  # Epsilons available in afex table
+  eps_GG <- if ("GG eps" %in% colnames(tab)) {
+    unname(tab["group", "GG eps"])
+  } else {
+    NA_real_
+  }
+  eps_HF <- if ("HF eps" %in% colnames(tab)) {
+    unname(tab["group", "HF eps"])
+  } else {
+    NA_real_
+  }
+
+  # Helper to build one row given a label + epsilon
+  make_row <- function(label, eps, p_col) {
+    if (is.na(eps)) {
+      return(NULL)
+    }
+    df1 <- df1_raw * eps
+    df2 <- df2_raw * eps
+    p <- if (!is.null(p_col) && p_col %in% colnames(tab)) {
+      unname(tab["group", p_col])
+    } else {
+      stats::pf(F_val, df1, df2, lower.tail = FALSE)
+    }
+    tibble::tibble(
+      test = "anova_repeated",
+      method = "Repeated measures ANOVA",
+      engine = "anova_repeated",
+      n_obs = nrow(df),
+      n_subjects = length(unique(df$id)),
+      statistic = F_val,
+      df1 = df1,
+      df2 = df2,
+      p.value = p,
+      estimate = NA_real_,
+      conf.low = NA_real_,
+      conf.high = NA_real_,
+      metric = label,
+      notes = list(c(
+        meta$diagnostics$notes %||% character(),
+        sprintf("Reported with %s correction.", label)
+      ))
+    )
+  }
+
+  # Always compute candidates
+  row_uncorr <- tibble::tibble(
+    test = "anova_repeated",
+    method = "Repeated measures ANOVA",
+    engine = "anova_repeated",
+    n_obs = nrow(df),
+    n_subjects = length(unique(df$id)),
+    statistic = F_val,
+    df1 = df1_raw,
+    df2 = df2_raw,
+    p.value = p_raw,
+    estimate = NA_real_,
+    conf.low = NA_real_,
+    conf.high = NA_real_,
+    metric = "uncorrected",
+    notes = list(c(meta$diagnostics$notes %||% character()))
+  )
+  row_GG <- make_row("GG", eps_GG, "Pr(>F[GG])")
+  row_HF <- make_row("HF", eps_HF, "Pr(>F[HF])")
+
+  out_all <- dplyr::bind_rows(
+    row_uncorr,
+    row_GG %||% NULL,
+    row_HF %||% NULL
+  )
+
+  # Decide what to return
+  choose_auto <- function() {
+    if (!is.na(p_mauchly) && p_mauchly < 0.05) {
+      # sphericity violated -> use preferred correction if available
+      if (prefer_corr == "GG" && !is.null(row_GG)) {
+        return(out_all[out_all$metric == "GG", ])
+      }
+      if (prefer_corr == "HF" && !is.null(row_HF)) {
+        return(out_all[out_all$metric == "HF", ])
+      }
+      # fallback: whichever exists
+      return(out_all[out_all$metric %in% c("GG", "HF"), ][1, , drop = FALSE])
+    } else {
+      # sphericity OK -> uncorrected
+      return(out_all[out_all$metric == "uncorrected", ])
+    }
+  }
+
+  res <- switch(
+    return_df,
+    all = out_all,
+    uncorrected = out_all[out_all$metric == "uncorrected", ],
+    GG = out_all[out_all$metric == "GG", ],
+    HF = out_all[out_all$metric == "HF", ],
+    LB = {
+      # LB not available in afex table; compute if requested
+      # If you want LB, add a block similar to GG/HF using car::Anova(..., correction="LB")
+      cli::cli_warn(
+        "Lower-bound correction not implemented in this engine yet."
+      )
+      out_all[out_all$metric == "uncorrected", ]
+    },
+    auto = choose_auto()
+  )
+
+  # Add contextual note if we auto-selected
+  if (return_df == "auto") {
+    note <- if (!is.na(p_mauchly) && p_mauchly < 0.05) {
+      sprintf(
+        "Sphericity violated (Mauchly p = %.3g); %s correction reported.",
+        p_mauchly,
+        if (nrow(res) && res$metric[1] != "uncorrected") {
+          res$metric[1]
+        } else {
+          prefer_corr
+        }
+      )
+    } else if (!is.na(p_mauchly)) {
+      sprintf(
+        "Sphericity not violated (Mauchly p = %.3g); uncorrected results reported.",
+        p_mauchly
+      )
+    } else {
+      "Mauchly p could not be extracted; defaulting to uncorrected."
+    }
+    res$notes <- lapply(res$notes, function(x) c(x, note))
+  }
+
+  res
+}
+
 
 # define global variables to avoid R CMD check warnings
-utils::globalVariables(c(".data", "label", "y", "ymin", "ymax", "n", ".id", ".g", ".y"))
+utils::globalVariables(c(
+  ".data",
+  "label",
+  "y",
+  "ymin",
+  "ymax",
+  "n",
+  ".id",
+  ".g",
+  ".y"
+))
