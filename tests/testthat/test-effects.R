@@ -161,6 +161,41 @@ test_that("effects() computes epsilon squared for kruskal_wallis engine", {
   expect_type(out$fitted$es_value, "double")
 })
 
+test_that("effects() computes partial eta squared for anova_repeated engine", {
+  set.seed(42)
+  df <- tibble::tibble(
+    id = rep(1:8, each = 3),
+    group = factor(rep(c("A", "B", "C"), times = 8)),
+    outcome = rep(rnorm(8, 10, 1), each = 3) + rep(c(0, 0.5, 1), times = 8) + rnorm(24, 0, 0.1)
+  )
+  out <- comp_spec(df) |>
+    set_roles(outcome = outcome, group = group, id = id) |>
+    set_design("repeated") |>
+    set_outcome_type("numeric") |>
+    set_engine("anova_repeated") |>
+    test() |>
+    effects(conf_level = 0.90)
+  expect_equal(out$fitted$es_metric, "Eta2_partial")
+  expect_type(out$fitted$es_value, "double")
+})
+
+test_that("effects() computes Kendalls W for friedman engine", {
+  df <- tibble::tibble(
+    id = rep(1:5, each = 3),
+    group = factor(rep(c("A", "B", "C"), times = 5)),
+    outcome = c(3, 2, 1, 2, 1, 3, 1, 3, 2, 2, 3, 1, 3, 1, 2)
+  )
+  out <- comp_spec(df) |>
+    set_roles(outcome = outcome, group = group, id = id) |>
+    set_design("repeated") |>
+    set_outcome_type("numeric") |>
+    set_engine("friedman") |>
+    test() |>
+    effects(conf_level = 0.90)
+  expect_equal(out$fitted$es_metric, "Kendalls_W")
+  expect_type(out$fitted$es_value, "double")
+})
+
 test_that("effects() allows custom effect size functions", {
   df <- tibble::tibble(
     outcome = c(1, 2, 3, 4, 5, 6, 7, 8, 9),
