@@ -33,6 +33,22 @@ test_that("test() supports paired design when id provided", {
   expect_equal(res$fitted$engine, "paired_t")
 })
 
+test_that("test() supports repeated design when id provided", {
+  df <- tibble::tibble(
+    id = rep(1:4, each = 3),
+    group = factor(rep(c("A", "B", "C"), times = 4)),
+    outcome = rnorm(12)
+  )
+  spec <- suppressMessages(
+    comp_spec(df) |>
+      set_roles(outcome = outcome, group = group, id = id) |>
+      set_design("repeated") |>
+      set_outcome_type("numeric")
+  )
+  res <- suppressMessages(test(spec))
+  expect_equal(res$fitted$engine, "anova_repeated")
+})
+
 test_that("test() requires id for paired design", {
   spec <- suppressMessages(
     comp_spec(mtcars) |>
@@ -43,20 +59,17 @@ test_that("test() requires id for paired design", {
   expect_error(test(spec), "id role")
 })
 
-test_that("test() errors for unsupported designs", {
-  expect_error(
-    {
-      spec <- suppressMessages(
-        comp_spec(mtcars) |>
-          set_roles(outcome = mpg, group = am) |>
-          set_design("repeated") |>
-          set_outcome_type("numeric")
-      )
-      test(spec)
-    },
-    "independent.*or.*paired"
+test_that("test() requires id for repeated design", {
+  spec <- suppressMessages(
+    comp_spec(mtcars) |>
+      set_roles(outcome = mpg, group = cyl) |>
+      set_design("repeated") |>
+      set_outcome_type("numeric")
   )
+  expect_error(test(spec), "id role")
 })
+
+# removed: test for unsupported designs as repeated design is now supported
 
 test_that("test() requires numeric outcome type", {
   spec <- suppressMessages(
@@ -78,6 +91,37 @@ test_that("default engine is welch_t and warns if diagnostics missing", {
   expect_warning(res <- suppressMessages(test(spec)), "diagnose")
   expect_s3_class(res$fitted, "comp_result")
   expect_equal(res$fitted$engine, "welch_t")
+})
+
+test_that("independent design with >2 groups defaults to anova_oneway_welch", {
+  df <- tibble::tibble(
+    outcome = c(1, 2, 3, 4, 5, 6, 7, 8, 9),
+    group = factor(rep(c("A", "B", "C"), each = 3))
+  )
+  spec <- suppressMessages(
+    comp_spec(df) |>
+      set_roles(outcome = outcome, group = group) |>
+      set_design("independent") |>
+      set_outcome_type("numeric")
+  )
+  res <- suppressMessages(test(spec))
+  expect_equal(res$fitted$engine, "anova_oneway_welch")
+})
+
+test_that("parametric strategy uses anova_oneway_equal engine for >2 groups", {
+  df <- tibble::tibble(
+    outcome = c(1, 2, 3, 4, 5, 6, 7, 8, 9),
+    group = factor(rep(c("A", "B", "C"), each = 3))
+  )
+  spec <- suppressMessages(
+    comp_spec(df) |>
+      set_roles(outcome = outcome, group = group) |>
+      set_design("independent") |>
+      set_outcome_type("numeric") |>
+      set_strategy("parametric")
+  )
+  res <- suppressMessages(test(spec))
+  expect_equal(res$fitted$engine, "anova_oneway_equal")
 })
 
 test_that("parametric strategy uses student_t engine", {
@@ -119,9 +163,66 @@ test_that("nudge toward Mann-Whitney for small n and non-normal data", {
   spec$diagnostics <- list(
     group_sizes = tibble(n = c(10, 14)),
     normality = tibble(p_shapiro = c(0.001, 0.001)),
-    notes = character()
+    notes = character(),
+    var_bf_p = NA,
+    sphericity_p = NA
   )
   expect_warning(suppressMessages(test(spec)), "mann_whitney")
+})
+
+test_that("nudge toward Friedman when sphericity violated", {
+  df <- tibble::tibble(
+    id = rep(1:4, each = 3),
+    group = factor(rep(c("A", "B", "C"), times = 4)),
+    outcome = rnorm(12)
+  )
+  spec <- suppressMessages(
+    comp_spec(df) |>
+      set_roles(outcome = outcome, group = group, id = id) |>
+      set_design("repeated") |>
+      set_outcome_type("numeric")
+  )
+  spec$diagnostics <- list(
+    group_sizes = tibble(n = c(4, 4, 4)),
+    normality = tibble(p_shapiro = c(0.5, 0.5, 0.5)),
+    var_bf_p = NA,
+    sphericity_p = 0.01,
+    notes = character()
+  )
+  expect_warning(suppressMessages(test(spec)), "friedman")
+})
+
+test_that("can use kruskal_wallis engine for independent multi-group data", {
+  df <- tibble::tibble(
+    outcome = c(1, 2, 3, 4, 5, 6, 7, 8, 9),
+    group = factor(rep(c("A", "B", "C"), each = 3))
+  )
+  spec <- suppressMessages(
+    comp_spec(df) |>
+      set_roles(outcome = outcome, group = group) |>
+      set_design("independent") |>
+      set_outcome_type("numeric") |>
+      set_engine("kruskal_wallis")
+  )
+  res <- suppressMessages(test(spec))
+  expect_equal(res$fitted$engine, "kruskal_wallis")
+})
+
+test_that("can use friedman engine for repeated data", {
+  df <- tibble::tibble(
+    id = rep(1:4, each = 3),
+    group = factor(rep(c("A", "B", "C"), times = 4)),
+    outcome = c(1, 2, 3, 2, 4, 6, 3, 6, 9, 4, 8, 12)
+  )
+  spec <- suppressMessages(
+    comp_spec(df) |>
+      set_roles(outcome = outcome, group = group, id = id) |>
+      set_design("repeated") |>
+      set_outcome_type("numeric") |>
+      set_engine("friedman")
+  )
+  res <- suppressMessages(test(spec))
+  expect_equal(res$fitted$engine, "friedman")
 })
 
 test_that("test() errors when engine registry lacks the selected engine", {
@@ -142,5 +243,76 @@ test_that("test() errors when engine registry lacks the selected engine", {
     test(spec),
     regexp = "Selected engine `student_t` not available\\.",
     fixed = FALSE
+  )
+})
+
+test_that("test() errors when `design` is NULL or invalid", {
+  # Minimal comp_spec double that satisfies earlier guards
+  make_spec <- function(design) {
+    structure(
+      list(
+        roles = list(outcome = "y", group = "g"),
+        design = design,
+        outcome_type = "numeric",
+        strategy = "auto",
+        data_raw = data.frame(y = 1:4, g = rep(0:1, 2))
+      ),
+      class = "comp_spec"
+    )
+  }
+
+  # 1) NULL design triggers the guard
+  spec_null <- make_spec(NULL)
+  expect_error(
+    test(spec_null),
+    "currently supports `design = 'independent'`, 'paired', or 'repeated'",
+    fixed = FALSE
+  )
+
+  # 2) Invalid design value triggers the same guard
+  spec_bad <- make_spec("wrong_value")
+  expect_error(
+    test(spec_bad),
+    "currently supports `design = 'independent'`, 'paired', or 'repeated'",
+    fixed = FALSE
+  )
+})
+
+test_that("warns on severe non-normality with very small n (anova_oneway)", {
+  testthat::local_reproducible_output(unicode = FALSE)
+  withr::local_options(cli.width = 1e6)
+
+  fake_diag <- list(
+    group_sizes = data.frame(n = c(10, 20, 25)),
+    normality = data.frame(p_shapiro = c(0.005, 0.5, 0.6))
+  )
+  df <- data.frame(y = rnorm(27), g = factor(rep(c("A", "B", "C"), each = 9)))
+
+  spec <- structure(
+    list(
+      roles = list(outcome = "y", group = "g"),
+      design = "independent",
+      outcome_type = "numeric",
+      strategy = "auto", # selector may pick Welch
+      diagnostics = fake_diag,
+      data_raw = df
+    ),
+    class = "comp_spec"
+  )
+
+  testthat::with_mocked_bindings(
+    .tidycomp_engines = function() {
+      list(
+        anova_oneway = function(...) list(dummy = TRUE),
+        anova_oneway_welch = function(...) list(dummy = TRUE)
+      )
+    },
+    .env = asNamespace("tidycomp"),
+    {
+      expect_warning(
+        test(spec),
+        regexp = "\\Q`set_engine('kruskal_wallis')`\\E"
+      )
+    }
   )
 })

@@ -75,7 +75,7 @@ diagnose <- function(spec) {
     )
 
   # variance heterogeneity (Brown-Forsythe proxy)
-  p_bf <- .brown_forsythe_2g(df[[outcome]], df[[group]])
+  p_bf <- .brown_forsythe(df[[outcome]], df[[group]])
   var_hetero <- is.finite(p_bf) && !is.na(p_bf) && p_bf < 0.05
 
   # outliers (IQR rule), per group
@@ -117,10 +117,40 @@ diagnose <- function(spec) {
     )
   }
 
+  # sphericity check for repeated-measures design
+  p_mauchly <- NA_real_
+  if (identical(spec$design, "repeated") && !is.null(roles$id)) {
+    id <- roles$id
+    .validate_cols(df, id)
+    wide <- tryCatch(
+      stats::reshape(
+        df[, c(id, group, outcome)],
+        idvar = id,
+        timevar = group,
+        direction = "wide"
+      ),
+      error = function(e) NULL
+    )
+    if (!is.null(wide)) {
+      mat <- as.matrix(wide[, setdiff(names(wide), id), drop = FALSE])
+      fit <- tryCatch(stats::lm(mat ~ 1), error = function(e) NULL)
+      if (!is.null(fit)) {
+        p_mauchly <- tryCatch(
+          stats::mauchly.test(fit)$p.value,
+          error = function(e) NA_real_
+        )
+        if (is.finite(p_mauchly) && p_mauchly < 0.05) {
+          notes <- c(notes, "Sphericity violation flagged (Mauchly p < .05).")
+        }
+      }
+    }
+  }
+
   spec$diagnostics <- list(
     group_sizes = g_n,
     normality = norm,
     var_bf_p = p_bf,
+    sphericity_p = p_mauchly,
     notes = notes
   )
   cli::cli_inform("Diagnostics complete. {length(notes)} note{?s} recorded.")

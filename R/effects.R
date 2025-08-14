@@ -78,6 +78,7 @@ effects <- function(spec, conf_level = 0.95, effect = "default") {
 
   data <- spec$data_prepared %||% spec$data_raw
   engine <- spec$fitted$engine %||% ""
+<<<<<<< HEAD
 
   default_map <- list(
     student_t = "cohens_d",
@@ -104,15 +105,37 @@ effects <- function(spec, conf_level = 0.95, effect = "default") {
 
   if (identical(spec$design, "paired")) {
     df <- .standardize_paired_numeric(
+=======
+  multi_group_engines <- c(
+    "kruskal_wallis",
+    "anova_oneway_equal",
+    "anova_oneway_welch",
+    "anova_repeated",
+    "friedman"
+  )
+  df <- if (identical(spec$design, "paired")) {
+    .standardize_paired_numeric(
+>>>>>>> feature/multiple-groups
       data,
       spec$roles$outcome,
       spec$roles$group,
       spec$roles$id
     )
+<<<<<<< HEAD
     g <- names(df)
     args <- list(df[[g[2]]], df[[g[1]]], paired = TRUE, ci = conf_level)
   } else if (engine %in% c("anova_oneway_equal", "anova_oneway_welch", "kruskal_wallis")) {
     df <- .standardize_multi_group_numeric(
+=======
+  } else if (engine %in% multi_group_engines) {
+    .standardize_multi_group_numeric(
+      data,
+      spec$roles$outcome,
+      spec$roles$group
+    )
+  } else {
+    .standardize_two_group_numeric(
+>>>>>>> feature/multiple-groups
       data,
       spec$roles$outcome,
       spec$roles$group
@@ -132,9 +155,116 @@ effects <- function(spec, conf_level = 0.95, effect = "default") {
     )
     args <- list(outcome ~ group, data = df, ci = conf_level)
   }
+<<<<<<< HEAD
 
   fun <- getExportedValue("effectsize", effect)
   out <- do.call(fun, args)
+=======
+  effect <- match.arg(effect, c("default", "cohens_d"))
+  es <- switch(
+    engine,
+    student_t = {
+      out <- effectsize::cohens_d(
+        outcome ~ group,
+        data = df,
+        ci = conf_level,
+        hedges.correction = FALSE
+      )
+      list(
+        value = out$Cohens_d,
+        low = out$CI_low,
+        high = out$CI_high,
+        metric = "Cohens_d"
+      )
+    },
+    welch_t = {
+      if (effect == "cohens_d") {
+        out <- effectsize::cohens_d(
+          outcome ~ group,
+          data = df,
+          ci = conf_level,
+          hedges.correction = FALSE
+        )
+        list(
+          value = out$Cohens_d,
+          low = out$CI_low,
+          high = out$CI_high,
+          metric = "Cohens_d"
+        )
+      } else {
+        out <- effectsize::hedges_g(
+          outcome ~ group,
+          data = df,
+          ci = conf_level
+        )
+        list(
+          value = out$Hedges_g,
+          low = out$CI_low,
+          high = out$CI_high,
+          metric = "Hedges_g"
+        )
+      }
+    },
+    mann_whitney = {
+      out <- effectsize::rank_biserial(
+        outcome ~ group,
+        data = df,
+        ci = conf_level
+      )
+      list(
+        value = out$r_rank_biserial,
+        low = out$CI_low,
+        high = out$CI_high,
+        metric = "r_Wilcoxon"
+      )
+    },
+    paired_t = {
+      g <- names(df)
+      out <- effectsize::cohens_d(
+        df[[g[2]]],
+        df[[g[1]]],
+        paired = TRUE,
+        ci = conf_level,
+        hedges.correction = FALSE
+      )
+      list(
+        value = out$Cohens_d,
+        low = out$CI_low,
+        high = out$CI_high,
+        metric = "Cohens_d"
+      )
+    },
+    wilcoxon_signed_rank = {
+      g <- names(df)
+      out <- effectsize::rank_biserial(
+        df[[g[2]]],
+        df[[g[1]]],
+        paired = TRUE,
+        ci = conf_level
+      )
+      list(
+        value = out$r_rank_biserial,
+        low = out$CI_low,
+        high = out$CI_high,
+        metric = "r_Wilcoxon"
+      )
+    },
+    {
+      out <- effectsize::hedges_g(
+        outcome ~ group,
+        data = df,
+        ci = conf_level
+      )
+      cli::cli_warn("Unknown engine; defaulting to Hedges' g.")
+      list(
+        value = out$Hedges_g,
+        low = out$CI_low,
+        high = out$CI_high,
+        metric = "Hedges_g"
+      )
+    }
+  )
+>>>>>>> feature/multiple-groups
 
   metric <- names(out)[1]
   if (metric == "r_rank_biserial") {

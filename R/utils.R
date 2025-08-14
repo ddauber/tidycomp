@@ -72,8 +72,14 @@
 
 #' Standardize multi-group numeric data
 #'
+<<<<<<< HEAD
 #' Select and rename the outcome and group columns, validate type, and
 #' coerce the group column to a factor with at least two levels.
+=======
+#' Select and rename the outcome and group columns, ensure a numeric
+#' outcome, and coerce the grouping variable to a factor with at least
+#' two levels.
+>>>>>>> feature/multiple-groups
 #'
 #' @param data A data frame.
 #' @param outcome,group Character names of validated columns.
@@ -140,6 +146,39 @@
   tibble::as_tibble(wide[, setdiff(names(wide), "id"), drop = FALSE])
 }
 
+#' Standardize repeated-measures numeric data
+#'
+#' Select outcome, group, and id columns and validate that each id has
+#' one observation per group. Returns the data in long format; engines may
+#' reshape as needed.
+#'
+#' @param data A data frame.
+#' @param outcome,group,id Character names of validated columns.
+#' @return A tibble with columns `outcome`, `group`, and `id`.
+#' @keywords internal
+#' @noRd
+.standardize_repeated_numeric <- function(data, outcome, group, id) {
+  df <- tibble::as_tibble(data[, c(outcome, group, id)])
+  names(df) <- c("outcome", "group", "id")
+  if (!is.numeric(df$outcome)) {
+    cli::cli_abort("Outcome must be numeric for the current engine.")
+  }
+  if (is.null(id)) {
+    cli::cli_abort("Repeated measures design requires an `id` role.")
+  }
+  if (!is.factor(df$group)) {
+    df$group <- factor(df$group)
+  }
+  if (nlevels(df$group) < 2) {
+    cli::cli_abort("Group must have at least 2 levels for this engine.")
+  }
+  chk <- dplyr::count(df, id, group)
+  if (any(chk$n != 1)) {
+    cli::cli_abort("Each id must have one observation for each group.")
+  }
+  df
+}
+
 #' Flag outliers using common rules
 #'
 #' Compute lower/upper fences for finite values of `x` based on one of
@@ -178,31 +217,27 @@
   list(lo = lo, hi = hi)
 }
 
-#' Brown–Forsythe test (2 groups, minimal)
+#' Brown–Forsythe test (median-based Levene)
 #'
-#' Median-based Levene test for equality of variance in two groups.
-#' Implemented via a classic two-sample t-test on absolute deviations
-#' from group medians. Returns a p-value.
+#' Median-based Levene test for equality of variance across two or more
+#' groups. Returns a p-value from a one-way ANOVA on absolute deviations
+#' from group medians.
 #'
 #' @param y Numeric outcome.
 #' @param g Grouping variable (coerced to factor).
-#' @return Numeric p-value, or `NA` if not applicable.
+#' @return Numeric p-value, or `NA` if fewer than two groups are present.
 #' @keywords internal
 #' @noRd
-.brown_forsythe_2g <- function(y, g) {
+.brown_forsythe <- function(y, g) {
   g <- factor(g)
-  if (nlevels(g) != 2) {
+  if (nlevels(g) < 2) {
     return(NA_real_)
   }
   med <- tapply(y, g, stats::median, na.rm = TRUE)
   z <- abs(y - med[match(g, levels(g))])
-  # one-way ANOVA on z ~ g
-  # minimal implementation:
-  z1 <- z[g == levels(g)[1]]
-  z2 <- z[g == levels(g)[2]]
-  # classic two-sample t on z (proxy); small sample caveat
-  res <- stats::t.test(z1, z2, var.equal = TRUE)
-  res$p.value
+  fit <- stats::aov(z ~ g)
+  an <- summary(fit)[[1]]
+  an["g", "Pr(>F)"]
 }
 
 
