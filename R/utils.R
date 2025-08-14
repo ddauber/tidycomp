@@ -235,7 +235,6 @@
   an["g", "Pr(>F)"]
 }
 
-
 #' Check if the `effectsize` package is installed
 #'
 #' This internal helper is used to determine whether the \pkg{effectsize}

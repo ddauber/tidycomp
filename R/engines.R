@@ -406,7 +406,7 @@ engine_anova_repeated <- function(data, meta) {
     meta$roles$group,
     meta$roles$id
   )
-  fit <- stats::aov(outcome ~ group + Error(id/group), data = df)
+  fit <- stats::aov(outcome ~ group + Error(id / group), data = df)
   summ <- summary(fit)
   within <- summ[["Error: Within"]][[1]]
   tibble::tibble(
