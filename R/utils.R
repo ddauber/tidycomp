@@ -72,14 +72,9 @@
 
 #' Standardize multi-group numeric data
 #'
-<<<<<<< HEAD
-#' Select and rename the outcome and group columns, validate type, and
-#' coerce the group column to a factor with at least two levels.
-=======
 #' Select and rename the outcome and group columns, ensure a numeric
 #' outcome, and coerce the grouping variable to a factor with at least
 #' two levels.
->>>>>>> feature/multiple-groups
 #'
 #' @param data A data frame.
 #' @param outcome,group Character names of validated columns.
