@@ -247,8 +247,8 @@
 #'   Supported values include: \code{"ges"}, \code{"pes"}, \code{"eta2"},
 #'   \code{"omega2"}, \code{"epsilon2"}, \code{"d"}, \code{"g"},
 #'   \code{"rank_biserial"}, \code{"kendalls_w"}, \code{"r2"}.
-#' @param ci Optional confidence interval level (e.g., 0.90). Use \code{NULL}
-#'   to skip confidence intervals.
+#' @param ci Confidence interval level (e.g., 0.90). Use \code{NULL}
+#'   to skip confidence intervals. Defaults to 0.95.
 #' @param compute Logical; if \code{TRUE}, \code{\link{test}()} will compute
 #'   effect sizes automatically (by calling \code{effects()}) after the test.
 #'   Default is \code{FALSE}.
@@ -256,7 +256,7 @@
 #'   \code{$effects_args}.
 #' @seealso \code{\link{effects}}, \code{\link{set_engine}}, \code{\link{set_engine_options}}, \code{\link{test}}
 #' @export
-set_effects <- function(x, type = "auto", ci = NULL, compute = FALSE) {
+set_effects <- function(x, type = "auto", ci = 0.95, compute = FALSE) {
   x$effects_args <- utils::modifyList(
     x$effects_args %||% list(),
     list(type = type, ci = ci, compute = compute)
@@ -282,7 +282,8 @@ set_effects <- function(x, type = "auto", ci = NULL, compute = FALSE) {
 #'   an engine-/class-based default. Supported values: \code{"ges"}, \code{"pes"},
 #'   \code{"eta2"}, \code{"omega2"}, \code{"epsilon2"}, \code{"d"}, \code{"g"},
 #'   \code{"rank_biserial"}, \code{"kendalls_w"}, \code{"r2"}.
-#' @param ci Optional confidence level (e.g., \code{0.90}); \code{NULL} for none.
+#' @param ci Confidence level (e.g., \code{0.90}); \code{NULL} for none. Defaults to
+#'   \code{0.95}.
 #' @return If \code{x} is a spec, the updated spec with \code{$effects};
 #'   otherwise a tibble of effect sizes.
 #' @export
@@ -301,7 +302,7 @@ effects <- function(
     "kendalls_w",
     "r2"
   ),
-  ci = NULL
+  ci = 0.95
 ) {
   type <- match.arg(type)
   is_spec <- inherits(x, "comp_spec")
@@ -318,10 +319,16 @@ effects <- function(
 
   user_args <- if (is_spec) (x$effects_args %||% list()) else list()
   type_arg <- user_args$type %||% NULL
-  ci_arg <- user_args$ci %||% NULL
+  ci_arg <- user_args$ci
 
   final_type <- if (!identical(type, "auto")) type else (type_arg %||% "auto")
-  final_ci <- if (!is.null(ci)) ci else ci_arg
+  final_ci <- if (!missing(ci)) {
+    ci
+  } else if ("ci" %in% names(user_args)) {
+    ci_arg
+  } else {
+    0.95
+  }
 
   if (identical(final_type, "auto")) {
     final_type <- .default_effect_type(x, fitted, mod)
