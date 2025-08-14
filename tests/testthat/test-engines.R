@@ -116,6 +116,25 @@ test_that("anova_repeated engine matches stats::aov", {
   expect_equal(res$p.value, unname(within["group","Pr(>F)"]))
 })
 
+test_that("anova_repeated works with non-standard group column names", {
+  df <- tibble::tibble(
+    id = rep(1:4, each = 3),
+    wave = factor(rep(c("A", "B", "C"), times = 4)),
+    outcome = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)
+  )
+  meta <- list(
+    roles = list(outcome = "outcome", group = "wave", id = "id"),
+    diagnostics = list(notes = character()),
+    settings = list()
+  )
+  res <- tidycomp:::engine_anova_repeated(df, meta)
+  expect_true(all(c("statistic", "df1", "df2", "p.value") %in% names(res)))
+  expect_false(is.na(res$statistic))
+  expect_false(is.na(res$df1))
+  expect_false(is.na(res$df2))
+  expect_false(is.na(res$p.value))
+})
+
 # Friedman --------------------------------------------------------------------
 
 test_that("friedman engine matches stats::friedman.test", {
