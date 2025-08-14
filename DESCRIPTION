@@ -25,6 +25,7 @@ Imports:
     tidyr
 Suggests:
     broom,
+    emmeans,
     knitr,
     rmarkdown,
     testthat (>= 3.0.0),
