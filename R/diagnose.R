@@ -118,30 +118,20 @@ diagnose <- function(spec) {
   }
 
   # sphericity check for repeated-measures design
+  sphericity <- NULL
   p_mauchly <- NA_real_
   if (identical(spec$design, "repeated") && !is.null(roles$id)) {
     id <- roles$id
     .validate_cols(df, id)
-    wide <- tryCatch(
-      stats::reshape(
-        df[, c(id, group, outcome)],
-        idvar = id,
-        timevar = group,
-        direction = "wide"
-      ),
+    res <- tryCatch(
+      diag_mauchly(df, !!rlang::sym(outcome), !!rlang::sym(group), !!rlang::sym(id)),
       error = function(e) NULL
     )
-    if (!is.null(wide)) {
-      mat <- as.matrix(wide[, setdiff(names(wide), id), drop = FALSE])
-      fit <- tryCatch(stats::lm(mat ~ 1), error = function(e) NULL)
-      if (!is.null(fit)) {
-        p_mauchly <- tryCatch(
-          stats::mauchly.test(fit)$p.value,
-          error = function(e) NA_real_
-        )
-        if (is.finite(p_mauchly) && p_mauchly < 0.05) {
-          notes <- c(notes, "Sphericity violation flagged (Mauchly p < .05).")
-        }
+    if (!is.null(res)) {
+      sphericity <- res
+      p_mauchly <- res$p
+      if (is.finite(p_mauchly) && p_mauchly < 0.05) {
+        notes <- c(notes, "Sphericity violation flagged (Mauchly p < .05).")
       }
     }
   }
@@ -150,6 +140,7 @@ diagnose <- function(spec) {
     group_sizes = g_n,
     normality = norm,
     var_bf_p = p_bf,
+    sphericity = sphericity,
     sphericity_p = p_mauchly,
     notes = notes
   )

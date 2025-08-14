@@ -406,6 +406,7 @@ engine_anova_repeated <- function(data, meta) {
     meta$roles$group,
     meta$roles$id
   )
+  mauchly <- meta$diagnostics$sphericity %||% diag_mauchly(df, outcome, group, id)
   fit <- stats::aov(outcome ~ group + Error(id / group), data = df)
   summ <- summary(fit)
   within <- summ[["Error: Within"]][[1]]
