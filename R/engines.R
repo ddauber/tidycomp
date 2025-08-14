@@ -410,9 +410,9 @@ engine_anova_repeated <- function(data, meta) {
   fit <- stats::aov(outcome ~ group + Error(id / group), data = df)
   summ <- summary(fit)
   nm <- names(summ)
-  idx <- grep("Within", nm)
+  idx <- tail(grep("Within", nm), 1)
   if (!length(idx)) {
-    idx <- grep(":", nm)
+    idx <- tail(grep(":", nm), 1)
   }
   if (!length(idx)) {
     err_idx <- grep("^Error:", nm)
