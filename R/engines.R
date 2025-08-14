@@ -409,7 +409,16 @@ engine_anova_repeated <- function(data, meta) {
   mauchly <- meta$diagnostics$sphericity %||% diag_mauchly(df, outcome, group, id)
   fit <- stats::aov(outcome ~ group + Error(id / group), data = df)
   summ <- summary(fit)
-  within <- summ[["Error: Within"]][[1]]
+  nm <- names(summ)
+  idx <- grep("Within", nm)
+  if (!length(idx)) {
+    idx <- grep(":", nm)
+  }
+  if (!length(idx)) {
+    err_idx <- grep("^Error:", nm)
+    idx <- err_idx[length(err_idx)]
+  }
+  within <- summ[[idx]][[1]]
   tibble::tibble(
     test = "anova_repeated",
     method = "Repeated measures ANOVA",
