@@ -46,7 +46,7 @@ test_that("test() supports repeated design when id provided", {
       set_outcome_type("numeric")
   )
   res <- suppressMessages(test(spec))
-  expect_equal(res$fitted$engine, "anova_repeated")
+  expect_true(res$fitted$engine %in% c("anova_repeated", "anova_repeated_base"))
 })
 
 test_that("test() requires id for paired design", {

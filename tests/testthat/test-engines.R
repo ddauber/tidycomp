@@ -26,6 +26,7 @@ test_that("engine registry lists available engines", {
       "anova_oneway_welch",
       "kruskal_wallis",
       "anova_repeated",
+      "anova_repeated_base",
       "friedman"
     )
   )
@@ -101,19 +102,60 @@ test_that("kruskal_wallis engine matches stats::kruskal.test", {
 
 # Repeated measures ANOVA ----------------------------------------------------
 
-test_that("anova_repeated engine matches stats::aov", {
+test_that("anova_repeated_base engine matches stats::aov", {
   df <- tibble::tibble(
     id = rep(1:4, each = 3),
-    group = factor(rep(c("A","B","C"), times = 4)),
-    outcome = c(1,2,3,4,5,6,7,8,9,10,11,12)
+    group = factor(rep(c("A", "B", "C"), times = 4)),
+    outcome = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)
   )
   meta <- make_meta()
-  res <- tidycomp:::engine_anova_repeated(df, meta)
+  res <- tidycomp:::engine_anova_repeated_base(df, meta)
   fit <- stats::aov(outcome ~ group + Error(id/group), data = df)
   summ <- summary(fit)
   within <- summ[["Error: Within"]][[1]]
-  expect_equal(res$statistic, unname(within["group","F value"]))
-  expect_equal(res$p.value, unname(within["group","Pr(>F)"]))
+  expect_equal(res$statistic, unname(within["group", "F value"]))
+  expect_equal(res$p.value, unname(within["group", "Pr(>F)"]))
+})
+
+test_that("anova_repeated falls back to base when afex is missing", {
+  if (rlang::is_installed("afex")) {
+    testthat::skip("afex installed")
+  }
+  df <- tibble::tibble(
+    id = rep(1:4, each = 3),
+    group = factor(rep(c("A", "B", "C"), times = 4)),
+    outcome = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)
+  )
+  meta <- make_meta()
+  res_main <- tidycomp:::engine_anova_repeated(df, meta)
+  res_base <- tidycomp:::engine_anova_repeated_base(df, meta)
+  expect_equal(res_main, res_base)
+})
+
+test_that("anova_repeated uses sphericity correction when needed", {
+  testthat::skip_if_not_installed("afex")
+  df_ok <- tibble::tibble(
+    id = rep(1:4, each = 3),
+    group = factor(rep(c("A", "B", "C"), times = 4)),
+    outcome = c(1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3)
+  )
+  meta <- make_meta()
+  res_ok <- tidycomp:::engine_anova_repeated(df_ok, meta)
+  base_ok <- tidycomp:::engine_anova_repeated_base(df_ok, meta)
+  expect_equal(res_ok$df1, base_ok$df1)
+  expect_equal(res_ok$df2, base_ok$df2)
+  expect_length(res_ok$notes[[1]], 0)
+
+  df_bad <- tibble::tibble(
+    id = rep(1:4, each = 3),
+    group = factor(rep(c("A", "B", "C"), times = 4)),
+    outcome = c(1, 2, 100, 1, 2, 110, 1, 2, 120, 1, 2, 130)
+  )
+  res_bad <- tidycomp:::engine_anova_repeated(df_bad, meta)
+  base_bad <- tidycomp:::engine_anova_repeated_base(df_bad, meta)
+  expect_lt(res_bad$df1, base_bad$df1)
+  expect_gt(res_bad$p.value, base_bad$p.value)
+  expect_gt(length(res_bad$notes[[1]]), 0)
 })
 
 test_that("anova_repeated works with non-standard group column names", {

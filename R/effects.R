@@ -91,6 +91,7 @@ effects <- function(spec, conf_level = 0.95, effect = "default") {
     anova_oneway_welch = "omega_squared",
     kruskal_wallis = "rank_epsilon_squared",
     anova_repeated = "eta_squared",
+    anova_repeated_base = "eta_squared",
     friedman = "kendalls_w"
   )
 
@@ -133,14 +134,14 @@ effects <- function(spec, conf_level = 0.95, effect = "default") {
       )
       args <- list(fit, ci = conf_level)
     }
-  } else if (engine %in% c("anova_repeated", "friedman")) {
+  } else if (engine %in% c("anova_repeated", "anova_repeated_base", "friedman")) {
     df <- .standardize_repeated_numeric(
       data,
       spec$roles$outcome,
       spec$roles$group,
       spec$roles$id
     )
-    if (engine == "anova_repeated") {
+    if (engine %in% c("anova_repeated", "anova_repeated_base")) {
       fit <- stats::aov(outcome ~ group + Error(id / group), data = df)
       args <- list(fit, partial = TRUE, ci = conf_level)
     } else {
@@ -167,13 +168,13 @@ effects <- function(spec, conf_level = 0.95, effect = "default") {
     getExportedValue("effectsize", effect)
   )
 
-  out <- if (engine == "anova_repeated") {
+  out <- if (engine %in% c("anova_repeated", "anova_repeated_base")) {
     suppressWarnings(do.call(effect_fun, args))
   } else {
     do.call(effect_fun, args)
   }
 
-  if (engine == "anova_repeated") {
+  if (engine %in% c("anova_repeated", "anova_repeated_base")) {
     out <- out[out$Group == "Within", , drop = FALSE]
     out <- out[, c("Eta2_partial", "CI_low", "CI_high"), drop = FALSE]
   }
