@@ -74,6 +74,7 @@ test_that("diagnose errors with different non-numeric outcome types", {
 })
 
 test_that("diagnose computes sphericity p-value for repeated design", {
+  testthat::skip_if_not_installed("afex")
   df <- tibble::tibble(
     id = rep(1:4, each = 3),
     group = factor(rep(c("A", "B", "C"), times = 4)),

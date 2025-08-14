@@ -470,7 +470,7 @@ engine_anova_repeated <- function(data, meta) {
   )
 
   tab <- as.data.frame(fit$anova_table)
-  sp <- afex::sphericity(fit)
+  sp <- afex::check_sphericity(fit)
   p_mauchly <- sp$tests["group", "p.value"]
 
   stat <- unname(tab["group", "F"])
