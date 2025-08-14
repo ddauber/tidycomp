@@ -7,17 +7,24 @@
 diag_mauchly(data, outcome, group, id, effect_label = NULL)
 }
 \arguments{
-\item{data}{A data frame containing at least the columns referenced in \code{outcome}, \code{group}, and \code{id}.}
+\item{data}{A data frame containing at least the columns referenced in
+\code{outcome}, \code{group}, and \code{id}.}
+
 \item{outcome}{The outcome column.}
+
 \item{group}{The within-subject factor column.}
+
 \item{id}{The subject identifier column.}
-\item{effect_label}{Optional character label for the effect. Defaults to the name of \code{group}.}
+
+\item{effect_label}{Optional character label for the effect. Defaults to the
+name of \code{group}.}
 }
 \value{
 A tibble with columns \code{Effect}, \code{W}, and \code{p}.
 }
 \description{
-Compute Mauchly's test of sphericity directly from long-format repeated-measures data without first fitting a model.
+Compute Mauchly's test of sphericity directly from long-format
+repeated-measures data without first fitting a model.
 }
 \examples{
 df <- tibble::tibble(
