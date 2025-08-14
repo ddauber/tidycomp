@@ -83,3 +83,28 @@ test_that("effects() works on a fitted result", {
   expect_s3_class(es, "tbl_df")
   expect_false(is.null(attr(es, "model")))
 })
+
+# effects on repeated-measures ANOVA
+
+test_that("effects() locates model for repeated measures", {
+  skip_if_not_installed("effectsize")
+
+  df <- tibble::tibble(
+    id = rep(1:4, each = 3),
+    group = factor(rep(c("A", "B", "C"), times = 4)),
+    outcome = 1:12
+  )
+
+  spec <- comp_spec(df) |>
+    set_roles(outcome = outcome, group = group, id = id) |>
+    set_design("repeated") |>
+    set_outcome_type("numeric") |>
+    set_engine("anova_repeated") |>
+    test()
+
+  fit <- spec$fitted
+  es <- effects(fit)
+
+  expect_s3_class(es, "tbl_df")
+  expect_false(is.null(attr(es, "model")))
+})
