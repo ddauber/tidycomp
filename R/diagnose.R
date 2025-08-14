@@ -123,15 +123,20 @@ diagnose <- function(spec) {
   if (identical(spec$design, "repeated") && !is.null(roles$id)) {
     id <- roles$id
     .validate_cols(df, id)
-    res <- tryCatch(
-      diag_mauchly(df, !!rlang::sym(outcome), !!rlang::sym(group), !!rlang::sym(id)),
-      error = function(e) NULL
-    )
-    if (!is.null(res)) {
-      sphericity <- res
-      p_mauchly <- res$p
-      if (is.finite(p_mauchly) && p_mauchly < 0.05) {
-        notes <- c(notes, "Sphericity violation flagged (Mauchly p < .05).")
+    if (rlang::is_installed("afex")) {
+      fit <- tryCatch(
+        afex::aov_ez(id = id, dv = outcome, within = group, data = df),
+        error = function(e) NULL
+      )
+      if (!is.null(fit)) {
+        sp <- tryCatch(afex::check_sphericity(fit), error = function(e) NULL)
+        if (!is.null(sp)) {
+          sphericity <- tibble::as_tibble(sp$tests, rownames = "Effect")
+          p_mauchly <- sp$tests["group", "p.value"]
+          if (is.finite(p_mauchly) && p_mauchly < 0.05) {
+            notes <- c(notes, "Sphericity violation flagged (Mauchly p < .05).")
+          }
+        }
       }
     }
   }
