@@ -70,6 +70,31 @@
   df
 }
 
+#' Standardize multi-group numeric data
+#'
+#' Select and rename the outcome and group columns, validate type, and
+#' coerce the group column to a factor with at least two levels.
+#'
+#' @param data A data frame.
+#' @param outcome,group Character names of validated columns.
+#' @return A tibble with columns `outcome` (numeric) and `group` (factor).
+#' @keywords internal
+#' @noRd
+.standardize_multi_group_numeric <- function(data, outcome, group) {
+  df <- tibble::as_tibble(data[, c(outcome, group)])
+  names(df) <- c("outcome", "group")
+  if (!is.numeric(df$outcome)) {
+    cli::cli_abort("Outcome must be numeric for the current engine.")
+  }
+  if (!is.factor(df$group)) {
+    df$group <- factor(df$group)
+  }
+  if (nlevels(df$group) < 2) {
+    cli::cli_abort("Group must have at least 2 levels for this engine.")
+  }
+  df
+}
+
 #' Standardize paired numeric data with id
 #'
 #' Select outcome, group, and id columns, validate pairing structure, and
