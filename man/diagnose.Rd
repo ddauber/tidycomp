@@ -26,6 +26,7 @@ The following summaries are computed and stored in \code{spec$diagnostics}:
 \item \code{group_sizes}: a tibble with counts per group.
 \item \code{var_bf_p}: Brown-Forsythe proxy p‑value for variance heterogeneity.
 \item \code{normality}: per-group Shapiro-Wilk p‑values (flagged only; not enforced).
+\item \code{sphericity}: Mauchly p-values for repeated-measures designs.
 \item \code{notes}: human-readable notes highlighting potential issues
 (e.g., small groups, variance heterogeneity, non-normality, outliers).
 }
