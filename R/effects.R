@@ -572,7 +572,7 @@ effects <- function(
     return(tibble::tibble(
       effect = roles$group,
       type = "rank_biserial",
-      estimate = rbs$Rank_biserial,
+      estimate = rbs$r_rank_biserial %||% rbs$Rank_biserial %||% rbs[[1]],
       conf.low = if (!is.null(ci)) rbs$CI_low else NA_real_,
       conf.high = if (!is.null(ci)) rbs$CI_high else NA_real_
     ))
@@ -619,7 +619,7 @@ effects <- function(
     return(tibble::tibble(
       effect = roles$group,
       type = "kendalls_w",
-      estimate = kw$W,
+      estimate = kw$Kendalls_W %||% kw$W %||% kw[[1]],
       conf.low = if (!is.null(ci)) kw$CI_low else NA_real_,
       conf.high = if (!is.null(ci)) kw$CI_high else NA_real_
     ))
