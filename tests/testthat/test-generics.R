@@ -28,6 +28,25 @@ test_that("tidy() on comp_result returns a tibble", {
   expect_equal(tidied, tibble::as_tibble(result))
 })
 
+test_that("tidy() drops all-NA columns by default but can retain them", {
+  res <- result
+  res$df2 <- NA
+  class(res) <- c("comp_result", "list")
+
+  tidied <- tidy(res)
+  expect_false("df2" %in% names(tidied))
+
+  tidied_full <- tidy(res, complete = TRUE)
+  expect_true("df2" %in% names(tidied_full))
+})
+
+test_that(".tidy_display() mirrors tidy() defaults", {
+  res <- result
+  res$df2 <- NA
+  class(res) <- c("comp_result", "list")
+  expect_equal(.tidy_display(res), tidy(res))
+})
+
 
 test_that("report() on comp_spec without results errors", {
   empty_spec <- comp_spec(sample_data)
@@ -38,40 +57,6 @@ test_that("report() on comp_spec without results errors", {
 test_that("report() on comp_result prints a summary", {
   expect_snapshot(report(result))
 })
-
-
-test_that("report.comp_result() includes an effect size line", {
-  testthat::local_reproducible_output()
-
-  # Prevent leaks from other tests:
-  testthat::local_mocked_bindings(
-    .has_effectsize = function() TRUE,
-    .env = asNamespace("tidycomp")
-  )
-
-  spec <- comp_spec(mtcars) |>
-    set_roles(outcome = mpg, group = am) |>
-    set_design("independent") |>
-    set_outcome_type("numeric") |>
-    set_engine("welch_t") |>
-    test() |>
-    effects(conf_level = 0.90)
-
-  # Optional guard to give a clear error if something still disables effects():
-  expect_true(
-    all(
-      c("es_value", "es_conf_low", "es_conf_high", "es_metric") %in%
-        names(spec$fitted)
-    ),
-    info = paste("Have:", paste(names(spec$fitted), collapse = ", "))
-  )
-
-  msgs <- testthat::capture_messages(report.comp_result(spec))
-  msgs_clean <- cli::ansi_strip(paste(as.character(msgs), collapse = "\n"))
-
-  expect_match(msgs_clean, "Effect size:", perl = TRUE)
-})
-
 
 test_that("report.comp_result() warns when notes are present", {
   testthat::local_reproducible_output()
@@ -88,7 +73,8 @@ test_that("report.comp_result() warns when notes are present", {
     set_engine("welch_t") |>
     diagnose() |>
     test() |>
-    effects(conf_level = 0.90)
+    set_effects(conf_level = 0.90) |>
+    effects()
 
   # Ensure the branch is taken: put notes where the method looks for them
   spec$fitted$notes <- list(c("outliers detected", "check assumptions"))

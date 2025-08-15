@@ -52,7 +52,10 @@ test <- function(spec) {
       "Set roles with `set_roles(outcome, group)` before `test()`."
     )
   }
-  if (is.null(spec$design) || !spec$design %in% c("independent", "paired", "repeated")) {
+  if (
+    is.null(spec$design) ||
+      !spec$design %in% c("independent", "paired", "repeated")
+  ) {
     cli::cli_abort(
       "MVP `test()` currently supports `design = 'independent'`, 'paired', or 'repeated'."
     )
@@ -74,7 +77,11 @@ test <- function(spec) {
   # engine choice
   engine <- spec$engine
   if (is.null(engine)) {
-    g_levels <- if (!is.null(spec$roles$group)) nlevels(factor(data[[spec$roles$group]])) else 0
+    g_levels <- if (!is.null(spec$roles$group)) {
+      nlevels(factor(data[[spec$roles$group]]))
+    } else {
+      0
+    }
     if (spec$design == "paired") {
       engine <- switch(
         spec$strategy,
@@ -96,10 +103,13 @@ test <- function(spec) {
         "anova_repeated"
       )
       diag <- spec$diagnostics
-      if (!is.null(diag) && is.finite(diag$sphericity_p) && !is.na(diag$sphericity_p) && diag$sphericity_p < 0.05) {
-        cli::cli_warn(
-          "Sphericity violation detected; consider `set_engine('friedman')`."
-        )
+      if (!is.null(diag)) {
+        p_mauchly <- .extract_sphericity_p(diag$sphericity)
+        if (is.finite(p_mauchly) && !is.na(p_mauchly) && p_mauchly < 0.05) {
+          cli::cli_warn(
+            "Sphericity violation detected; consider `set_engine('friedman')`."
+          )
+        }
       }
     } else {
       if (g_levels > 2) {
@@ -146,6 +156,9 @@ test <- function(spec) {
     }
   }
 
+  spec$engine <- engine
+  spec$effects_hint <- .engine_effect_hint(engine)
+
   eng_fun <- .tidycomp_engines()[[engine]]
   if (is.null(eng_fun)) {
     cli::cli_abort("Selected engine `{engine}` not available.")
@@ -153,10 +166,22 @@ test <- function(spec) {
 
   res <- eng_fun(
     data = data,
-    meta = list(roles = spec$roles, diagnostics = spec$diagnostics)
+    meta = list(
+      roles = spec$roles,
+      diagnostics = spec$diagnostics,
+      engine = list(args = spec$engine_args %||% list()),
+      engine_args = spec$engine_args %||% list()
+    )
   )
+
   class(res) <- c("comp_result", class(res))
+  attr(res, "engine_hint") <- spec$effects_hint
   spec$fitted <- res
   cli::cli_inform("Engine run: {engine}.")
+
+  if (isTRUE(spec$effects_args$compute)) {
+    spec <- effects(spec)
+  }
+
   spec
 }

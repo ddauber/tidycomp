@@ -29,9 +29,50 @@
     anova_oneway_welch = engine_anova_oneway_welch,
     kruskal_wallis = engine_kruskal_wallis,
     anova_repeated = engine_anova_repeated,
+    anova_repeated_base = engine_anova_repeated_base,
     friedman = engine_friedman
   )
 }
+
+#' Set engine-specific options
+#'
+#' Updates the engine configuration for a model specification with
+#' arguments that will be passed to the selected engine's internal
+#' function when \code{\link{test}()} is called.
+#'
+#' This helper allows users to supply parameters that are specific
+#' to the current engine (e.g., correction method, output format,
+#' or additional arguments for the underlying statistical function)
+#' without affecting other engines or the general API.
+#'
+#' @param x A model specification object created with
+#'   \code{\link{comp_spec}()} and configured with
+#'   \code{\link{set_engine}()}.
+#' @param ... Named arguments to add or update in the engine's
+#'   \code{args} list. These will be made available to the
+#'   engine function via \code{meta$engine$args}.
+#'
+#' @return An updated model specification object with engine-specific
+#'   options stored in \code{$engine_args}.
+#'
+#' @seealso \code{\link{set_engine}}, \code{\link{test}}
+#' @examples
+#' spec <- comp_spec(mtcars) |>
+#'   set_roles(outcome = mpg, group = cyl) |>
+#'   set_engine("anova_repeated") |>
+#'   set_engine_options(correction = "none")
+#'
+#' spec$engine_args
+#'
+#' @export
+set_engine_options <- function(x, ...) {
+  x$engine_args <- utils::modifyList(
+    x$engine_args %||% list(),
+    list(...)
+  )
+  x
+}
+
 
 #' Welch two-sample t-test engine (internal)
 #'
@@ -61,7 +102,7 @@ engine_welch_t <- function(data, meta) {
     meta$roles$group
   )
   fit <- stats::t.test(outcome ~ group, data = df, var.equal = FALSE)
-  tibble::tibble(
+  res <- tibble::tibble(
     test = "t",
     method = "Welch t-test",
     engine = "welch_t",
@@ -75,6 +116,8 @@ engine_welch_t <- function(data, meta) {
     metric = "mean_diff",
     notes = list(meta$diagnostics$notes %||% character())
   )
+  attr(res, "model") <- fit
+  res
 }
 
 #' Student (equal-variance) t-test engine (internal)
@@ -103,7 +146,7 @@ engine_student_t <- function(data, meta) {
     meta$roles$group
   )
   fit <- stats::t.test(outcome ~ group, data = df, var.equal = TRUE)
-  tibble::tibble(
+  res <- tibble::tibble(
     test = "t",
     method = "Student's t-test",
     engine = "student_t",
@@ -117,6 +160,8 @@ engine_student_t <- function(data, meta) {
     metric = "mean_diff",
     notes = list(meta$diagnostics$notes %||% character())
   )
+  attr(res, "model") <- fit
+  res
 }
 
 #' Mann-Whitney (Wilcoxon rank-sum) engine (internal)
@@ -175,7 +220,7 @@ engine_mann_whitney <- function(data, meta) {
   ci_hi <- if (has_ci) unname(fit$conf.int[2]) else NA_real_
   clvl <- if (has_ci) unname(attr(fit$conf.int, "conf.level")) else conf_level
 
-  tibble::tibble(
+  res <- tibble::tibble(
     test = "wilcox",
     method = fit$method, # e.g., "Wilcoxon rank sum exact test"
     engine = "mann_whitney",
@@ -197,6 +242,8 @@ engine_mann_whitney <- function(data, meta) {
       }
     ))
   )
+  attr(res, "model") <- fit
+  res
 }
 
 #' Paired t-test engine (internal)
@@ -216,7 +263,7 @@ engine_paired_t <- function(data, meta) {
   )
   g <- names(df)
   fit <- stats::t.test(df[[g[2]]], df[[g[1]]], paired = TRUE)
-  tibble::tibble(
+  res <- tibble::tibble(
     test = "t",
     method = "Paired t-test",
     engine = "paired_t",
@@ -230,6 +277,8 @@ engine_paired_t <- function(data, meta) {
     metric = "mean_diff",
     notes = list(meta$diagnostics$notes %||% character())
   )
+  attr(res, "model") <- fit
+  res
 }
 
 #' Wilcoxon signed-rank engine (internal)
@@ -267,7 +316,7 @@ engine_wilcoxon_signed_rank <- function(data, meta) {
   ci_lo <- if (has_ci) unname(fit$conf.int[1]) else NA_real_
   ci_hi <- if (has_ci) unname(fit$conf.int[2]) else NA_real_
   clvl <- if (has_ci) unname(attr(fit$conf.int, "conf.level")) else conf_level
-  tibble::tibble(
+  res <- tibble::tibble(
     test = "wilcox_signed_rank",
     method = fit$method,
     engine = "wilcoxon_signed_rank",
@@ -289,6 +338,8 @@ engine_wilcoxon_signed_rank <- function(data, meta) {
       }
     ))
   )
+  attr(res, "model") <- fit
+  res
 }
 
 #' One-way ANOVA engine assuming equal variances (internal)
@@ -307,7 +358,7 @@ engine_anova_oneway_equal <- function(data, meta) {
     meta$roles$group
   )
   fit <- stats::oneway.test(outcome ~ group, data = df, var.equal = TRUE)
-  tibble::tibble(
+  res <- tibble::tibble(
     test = "anova",
     method = "One-way ANOVA",
     engine = "anova_oneway_equal",
@@ -322,6 +373,8 @@ engine_anova_oneway_equal <- function(data, meta) {
     metric = NA_character_,
     notes = list(meta$diagnostics$notes %||% character())
   )
+  attr(res, "model") <- fit
+  res
 }
 
 #' Welch's one-way ANOVA engine (internal)
@@ -340,7 +393,7 @@ engine_anova_oneway_welch <- function(data, meta) {
     meta$roles$group
   )
   fit <- stats::oneway.test(outcome ~ group, data = df, var.equal = FALSE)
-  tibble::tibble(
+  res <- tibble::tibble(
     test = "anova",
     method = "Welch's ANOVA",
     engine = "anova_oneway_welch",
@@ -355,6 +408,8 @@ engine_anova_oneway_welch <- function(data, meta) {
     metric = NA_character_,
     notes = list(meta$diagnostics$notes %||% character())
   )
+  attr(res, "model") <- fit
+  res
 }
 
 #' Kruskal-Wallis engine (internal)
@@ -373,7 +428,7 @@ engine_kruskal_wallis <- function(data, meta) {
     meta$roles$group
   )
   fit <- stats::kruskal.test(outcome ~ group, data = df)
-  tibble::tibble(
+  res <- tibble::tibble(
     test = "kruskal_wallis",
     method = "Kruskal-Wallis rank sum test",
     engine = "kruskal_wallis",
@@ -388,18 +443,19 @@ engine_kruskal_wallis <- function(data, meta) {
     metric = NA_character_,
     notes = list(meta$diagnostics$notes %||% character())
   )
+  attr(res, "model") <- fit
+  res
 }
 
-#' Repeated-measures ANOVA engine (internal)
+#' Repeated-measures ANOVA engine (base R fallback, internal)
 #'
-#' Perform a one-factor repeated-measures ANOVA for a numeric outcome
-#' measured on the same subjects across multiple conditions.
+#' Perform a one-factor repeated-measures ANOVA using `stats::aov()`.
 #'
 #' @param data A data frame containing outcome, group, and id columns.
 #' @param meta A list with roles/diagnostics metadata.
 #' @keywords internal
 #' @noRd
-engine_anova_repeated <- function(data, meta) {
+engine_anova_repeated_base <- function(data, meta) {
   df <- .standardize_repeated_numeric(
     data,
     meta$roles$outcome,
@@ -408,11 +464,20 @@ engine_anova_repeated <- function(data, meta) {
   )
   fit <- stats::aov(outcome ~ group + Error(id / group), data = df)
   summ <- summary(fit)
-  within <- summ[["Error: Within"]][[1]]
-  tibble::tibble(
+  nm <- names(summ)
+  idx <- tail(grep("Within", nm), 1)
+  if (!length(idx)) {
+    idx <- tail(grep(":", nm), 1)
+  }
+  if (!length(idx)) {
+    err_idx <- grep("^Error:", nm)
+    idx <- err_idx[length(err_idx)]
+  }
+  within <- summ[[idx]][[1]]
+  res <- tibble::tibble(
     test = "anova_repeated",
     method = "Repeated measures ANOVA",
-    engine = "anova_repeated",
+    engine = "anova_repeated_base",
     n = nrow(df),
     statistic = unname(within["group", "F value"]),
     df1 = unname(within["group", "Df"]),
@@ -424,7 +489,198 @@ engine_anova_repeated <- function(data, meta) {
     metric = NA_character_,
     notes = list(meta$diagnostics$notes %||% character())
   )
+  attr(res, "model") <- fit
+  res
 }
+
+
+#' Repeated-measures ANOVA engine via afex (internal)
+#'
+#' @param data A data frame containing outcome, group, and id columns.
+#' @param meta  A list with roles/diagnostics metadata.
+#' @keywords internal
+#' @noRd
+
+engine_anova_repeated <- function(data, meta) {
+  # ----- helpers -----------------------------------------------------------
+  .safe_num1 <- function(x) {
+    v <- suppressWarnings(as.numeric(x))
+    if (length(v) == 0L) NA_real_ else v[1]
+  }
+  .first_effect_row <- function(tab) {
+    rn <- rownames(tab)
+    if (is.null(rn)) {
+      1L
+    } else {
+      j <- which(!grepl("\\(Intercept\\)", rn))
+      if (length(j)) j[1] else 1L
+    }
+  }
+  .extract_p_mauchly <- function(x) {
+    if (is.null(x)) {
+      return(NA_real_)
+    }
+    if (is.numeric(x) && length(x) == 1L) {
+      return(.safe_num1(x))
+    }
+    if (is.data.frame(x) && nrow(x) > 0L) {
+      pcol <- intersect(
+        names(x),
+        c("p", "p_value", "p.value", "Pr..W.", "Pr(>W)")
+      )[1]
+      if (!is.null(pcol)) return(.safe_num1(x[[pcol]][1]))
+    }
+    NA_real_
+  }
+
+  # ----- options & standardization ----------------------------------------
+  args <- meta$engine$args %||% meta$engine_args %||% list()
+  user_corr <- args$correction
+  afex_args <- args$afex_args %||% list()
+
+  df <- .standardize_repeated_numeric(
+    data,
+    meta$roles$outcome,
+    meta$roles$group,
+    meta$roles$id
+  )
+
+  # ----- fallback if afex missing -----------------------------------------
+  if (!rlang::is_installed("afex")) {
+    cli::cli_warn(
+      "Package {.pkg afex} not installed; using stats::aov fallback."
+    )
+    return(engine_anova_repeated_base(data, meta))
+  }
+
+  # ----- Step 1: obtain/compute sphericity p ------------------------------
+  p_mauchly <- .extract_p_mauchly(meta$diagnostics$sphericity)
+  if (
+    (!is.finite(p_mauchly) || is.na(p_mauchly)) &&
+      rlang::is_installed("performance")
+  ) {
+    fit_unc <- try(
+      do.call(
+        afex::aov_ez,
+        utils::modifyList(
+          list(
+            id = "id",
+            dv = "outcome",
+            within = "group",
+            data = df,
+            anova_table = list(correction = "none", es = "none")
+          ),
+          afex_args
+        )
+      ),
+      silent = TRUE
+    )
+    if (!inherits(fit_unc, "try-error")) {
+      sp_perf <- tryCatch(
+        performance::check_sphericity(fit_unc),
+        error = function(e) NULL
+      )
+      p_mauchly <- .extract_p_mauchly(sp_perf)
+    }
+  }
+
+  # ----- Step 2: decide correction (user override wins) -------------------
+  if (!is.null(user_corr)) {
+    correction <- match.arg(user_corr, c("none", "GG", "HF"))
+  } else if (is.finite(p_mauchly) && p_mauchly < 0.05) {
+    correction <- "GG"
+  } else {
+    if (!is.finite(p_mauchly) || is.na(p_mauchly)) {
+      cli::cli_warn(
+        "Sphericity p unavailable; using uncorrected unless overridden."
+      )
+    }
+    correction <- "none"
+  }
+
+  # ----- Step 3: fit once with chosen correction -------------------------
+  fit <- do.call(
+    afex::aov_ez,
+    utils::modifyList(
+      list(
+        id = "id",
+        dv = "outcome",
+        within = "group",
+        data = df,
+        anova_table = list(correction = correction, es = "none")
+      ),
+      afex_args
+    )
+  )
+  tab <- as.data.frame(fit$anova_table)
+
+  # pick the effect row robustly and extract standardized scalars
+  i <- .first_effect_row(tab)
+
+  need <- c("num Df", "den Df", "MSE", "F", "Pr(>F)")
+  miss <- setdiff(need, names(tab))
+  if (length(miss)) {
+    cli::cli_abort(c(
+      "afex anova_table is missing expected columns.",
+      "x" = "Missing: {.val {miss}}",
+      "i" = "Available: {.val {names(tab)}}"
+    ))
+  }
+
+  F_val <- .safe_num1(tab[i, "F", drop = TRUE])
+  df1 <- .safe_num1(tab[i, "num Df", drop = TRUE])
+  df2 <- .safe_num1(tab[i, "den Df", drop = TRUE])
+  p_val <- .safe_num1(tab[i, "Pr(>F)", drop = TRUE])
+  if (!is.finite(p_val)) {
+    p_val <- stats::pf(F_val, df1, df2, lower.tail = FALSE)
+  }
+
+  # ----- Step 4: notes & result ------------------------------------------
+  base_notes <- meta$diagnostics$notes %||% character()
+  note <- if (is.finite(p_mauchly)) {
+    if (identical(correction, "none")) {
+      sprintf(
+        "Sphericity not violated (Mauchly p = %.3g); uncorrected results reported.",
+        p_mauchly
+      )
+    } else {
+      sprintf(
+        "Sphericity violated (Mauchly p = %.3g); %s correction reported.",
+        p_mauchly,
+        correction
+      )
+    }
+  } else {
+    "Sphericity p unavailable; uncorrected results reported."
+  }
+
+  res <- tibble::tibble(
+    test = "anova_repeated",
+    method = "Repeated measures ANOVA",
+    engine = "anova_repeated",
+    n_obs = nrow(df),
+    n_subjects = length(unique(df$id)),
+    statistic = F_val,
+    df1 = df1,
+    df2 = df2,
+    p.value = p_val,
+    estimate = NA_real_,
+    conf.low = NA_real_,
+    conf.high = NA_real_,
+    metric = if (identical(correction, "none")) "uncorrected" else correction,
+    notes = list(c(base_notes, note))
+  )
+
+  # keep whatever sphericity object you had (as tibble if possible)
+  sp <- meta$diagnostics$sphericity
+  if (!is.null(sp)) {
+    sp <- tryCatch(tibble::as_tibble(sp), error = function(e) sp)
+  }
+  attr(res, "model") <- fit
+  attr(res, "diagnostics") <- list(sphericity = sp)
+  res
+}
+
 
 #' Friedman test engine (internal)
 #'
@@ -442,7 +698,7 @@ engine_friedman <- function(data, meta) {
     meta$roles$id
   )
   fit <- stats::friedman.test(outcome ~ group | id, data = df)
-  tibble::tibble(
+  res <- tibble::tibble(
     test = "friedman",
     method = "Friedman rank sum test",
     engine = "friedman",
@@ -457,4 +713,6 @@ engine_friedman <- function(data, meta) {
     metric = NA_character_,
     notes = list(meta$diagnostics$notes %||% character())
   )
+  attr(res, "model") <- fit
+  res
 }

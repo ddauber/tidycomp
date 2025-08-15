@@ -26,6 +26,7 @@ test_that("engine registry lists available engines", {
       "anova_oneway_welch",
       "kruskal_wallis",
       "anova_repeated",
+      "anova_repeated_base",
       "friedman"
     )
   )
@@ -59,8 +60,8 @@ test_that("Welch t engine matches stats::t.test", {
 
 test_that("anova_oneway_equal engine matches stats::oneway.test with equal variances", {
   df <- tibble::tibble(
-    outcome = c(1,2,3,4,5,6,7,8,9),
-    group = factor(rep(c("A","B","C"), each = 3))
+    outcome = c(1, 2, 3, 4, 5, 6, 7, 8, 9),
+    group = factor(rep(c("A", "B", "C"), each = 3))
   )
   meta <- make_meta()
   res <- tidycomp:::engine_anova_oneway_equal(df, meta)
@@ -73,8 +74,8 @@ test_that("anova_oneway_equal engine matches stats::oneway.test with equal varia
 
 test_that("anova_oneway_welch engine matches stats::oneway.test", {
   df <- tibble::tibble(
-    outcome = c(1,2,3,4,5,6,7,8,9),
-    group = factor(rep(c("A","B","C"), each = 3))
+    outcome = c(1, 2, 3, 4, 5, 6, 7, 8, 9),
+    group = factor(rep(c("A", "B", "C"), each = 3))
   )
   meta <- make_meta()
   res <- tidycomp:::engine_anova_oneway_welch(df, meta)
@@ -89,8 +90,8 @@ test_that("anova_oneway_welch engine matches stats::oneway.test", {
 
 test_that("kruskal_wallis engine matches stats::kruskal.test", {
   df <- tibble::tibble(
-    outcome = c(1,2,3,4,5,6,7,8,9),
-    group = factor(rep(c("A","B","C"), each = 3))
+    outcome = c(1, 2, 3, 4, 5, 6, 7, 8, 9),
+    group = factor(rep(c("A", "B", "C"), each = 3))
   )
   meta <- make_meta()
   res <- tidycomp:::engine_kruskal_wallis(df, meta)
@@ -101,19 +102,171 @@ test_that("kruskal_wallis engine matches stats::kruskal.test", {
 
 # Repeated measures ANOVA ----------------------------------------------------
 
-test_that("anova_repeated engine matches stats::aov", {
+test_that("anova_repeated_base engine matches stats::aov", {
   df <- tibble::tibble(
     id = rep(1:4, each = 3),
-    group = factor(rep(c("A","B","C"), times = 4)),
-    outcome = c(1,2,3,4,5,6,7,8,9,10,11,12)
+    group = factor(rep(c("A", "B", "C"), times = 4)),
+    outcome = c(1, 2, 3, 4, 5, 7, 7, 8, 9, 10, 11, 12)
   )
   meta <- make_meta()
-  res <- tidycomp:::engine_anova_repeated(df, meta)
-  fit <- stats::aov(outcome ~ group + Error(id/group), data = df)
+  res <- tidycomp:::engine_anova_repeated_base(df, meta)
+  fit <- stats::aov(outcome ~ group + Error(id / group), data = df)
   summ <- summary(fit)
   within <- summ[["Error: Within"]][[1]]
-  expect_equal(res$statistic, unname(within["group","F value"]))
-  expect_equal(res$p.value, unname(within["group","Pr(>F)"]))
+  expect_equal(res$statistic, unname(within["group", "F value"]))
+  expect_equal(res$p.value, unname(within["group", "Pr(>F)"]))
+})
+
+test_that("anova_repeated falls back to base when afex is missing", {
+  df <- tibble::tibble(
+    id = rep(1:4, each = 3),
+    group = factor(rep(c("A", "B", "C"), times = 4)),
+    outcome = c(1, 2, 3, 4, 5, 7, 7, 8, 9, 10, 11, 12)
+  )
+  meta <- make_meta()
+  res_base <- tidycomp:::engine_anova_repeated_base(df, meta)
+
+  res_main <- testthat::with_mocked_bindings(
+    is_installed = function(...) FALSE, # pretend afex is absent
+    .package = "rlang",
+    tidycomp:::engine_anova_repeated(df, meta)
+  )
+
+  expect_equal(res_main, res_base)
+})
+
+test_that("anova_repeated: uses uncorrected when sphericity OK; corrected when violated", {
+  skip_if_not_installed("afex")
+  skip_if_not_installed("performance")
+
+  set.seed(42)
+
+  # -------- Good sphericity (finite p > .05) ----------
+  # Three levels with similar difference variances; no singular patterns
+  N <- 60
+  A <- rnorm(N, 0, 1)
+  B <- A + rnorm(N, 0, 1.0) # similar spread to A
+  C <- A + rnorm(N, 0, 1.0) # similar spread to A/B
+
+  df_good <- tibble::tibble(
+    id = rep(seq_len(N), each = 3),
+    group = factor(rep(c("A", "B", "C"), times = N), levels = c("A", "B", "C")),
+    outcome = c(A, B, C)
+  )
+
+  spec_good <- comp_spec(df_good) |>
+    set_roles(outcome = outcome, group = group, id = id) |>
+    set_design("repeated") |>
+    set_outcome_type("numeric") |>
+    set_engine("anova_repeated") |>
+    diagnose() |>
+    test()
+
+  p_good <- as.numeric(spec_good$diagnostics$sphericity$p)[1]
+  expect_true(is.finite(p_good))
+  expect_gt(p_good, 0.05)
+
+  # Engine should report uncorrected line when sphericity is OK
+  expect_true(nrow(spec_good$fitted) >= 1)
+  expect_identical(spec_good$fitted$metric[1], "uncorrected")
+
+  # -------- Bad sphericity (finite p < .05) -----------
+  A <- rnorm(N, 0, 1)
+  B <- A + rnorm(N, 0, 0.01) # very small variance difference
+  C <- A + rnorm(N, 0, 5.0) # very large variance difference
+
+  df_bad <- tibble::tibble(
+    id = rep(seq_len(N), each = 3),
+    group = factor(rep(c("A", "B", "C"), times = N), levels = c("A", "B", "C")),
+    outcome = c(A, B, C)
+  )
+
+  spec_bad <- comp_spec(df_bad) |>
+    set_roles(outcome = outcome, group = group, id = id) |>
+    set_design("repeated") |>
+    set_outcome_type("numeric") |>
+    set_engine("anova_repeated") |>
+    diagnose() |>
+    test()
+
+  p_bad <- as.numeric(spec_bad$diagnostics$sphericity$p)[1]
+  expect_true(is.finite(p_bad))
+  expect_lt(p_bad, 0.05)
+  expect_identical(spec_bad$fitted$metric[1], "GG")
+  expect_true(any(grepl("GG correction", spec_bad$fitted$notes[[1]])))
+
+  # Respect user preference for HF when provided
+  spec_bad_hf <- comp_spec(df_bad) |>
+    set_roles(outcome = outcome, group = group, id = id) |>
+    set_design("repeated") |>
+    set_outcome_type("numeric") |>
+    set_engine("anova_repeated") |>
+    set_engine_options(correction = "HF") |>
+    diagnose() |>
+    test()
+  expect_identical(spec_bad_hf$fitted$metric[1], "HF")
+  expect_true(any(grepl("HF correction", spec_bad_hf$fitted$notes[[1]])))
+
+  # Respect user request for uncorrected despite violation
+  spec_bad_none <- comp_spec(df_bad) |>
+    set_roles(outcome = outcome, group = group, id = id) |>
+    set_design("repeated") |>
+    set_outcome_type("numeric") |>
+    set_engine("anova_repeated") |>
+    set_engine_options(correction = "none") |>
+    diagnose() |>
+    test()
+  expect_identical(spec_bad_none$fitted$metric[1], "uncorrected")
+})
+
+test_that("anova_repeated computes sphericity internally when diagnostics missing", {
+  skip_if_not_installed("afex")
+  skip_if_not_installed("performance")
+
+  set.seed(123)
+  N <- 60
+  A <- rnorm(N, 0, 1)
+  B <- A + rnorm(N, 0, 0.01)
+  C <- A + rnorm(N, 0, 5.0)
+
+  df_bad <- tibble::tibble(
+    id = rep(seq_len(N), each = 3),
+    group = factor(rep(c("A", "B", "C"), times = N), levels = c("A", "B", "C")),
+    outcome = c(A, B, C)
+  )
+
+  spec_bad <- comp_spec(df_bad) |>
+    set_roles(outcome = outcome, group = group, id = id) |>
+    set_design("repeated") |>
+    set_outcome_type("numeric") |>
+    set_engine("anova_repeated") |>
+    test()
+
+  sp <- attr(spec_bad$fitted, "diagnostics")$sphericity
+  expect_true(is.data.frame(sp))
+  p_bad <- as.numeric(sp$p[1])
+  expect_true(is.finite(p_bad))
+  expect_lt(p_bad, 0.05)
+  expect_identical(spec_bad$fitted$metric[1], "GG")
+})
+
+test_that("anova_repeated works with non-standard group column names", {
+  df <- tibble::tibble(
+    id = rep(1:4, each = 3),
+    wave = factor(rep(c("A", "B", "C"), times = 4)),
+    outcome = c(1, 2, 3, 4, 5, 7, 7, 8, 9, 10, 11, 12)
+  )
+  meta <- list(
+    roles = list(outcome = "outcome", group = "wave", id = "id"),
+    diagnostics = list(notes = character()),
+    settings = list()
+  )
+  res <- tidycomp:::engine_anova_repeated(df, meta)
+  expect_true(all(c("statistic", "df1", "df2", "p.value") %in% names(res)))
+  expect_false(is.na(res$statistic))
+  expect_false(is.na(res$df1))
+  expect_false(is.na(res$df2))
+  expect_false(is.na(res$p.value))
 })
 
 # Friedman --------------------------------------------------------------------
@@ -121,8 +274,8 @@ test_that("anova_repeated engine matches stats::aov", {
 test_that("friedman engine matches stats::friedman.test", {
   df <- tibble::tibble(
     id = rep(1:4, each = 3),
-    group = factor(rep(c("A","B","C"), times = 4)),
-    outcome = c(1,2,3,2,4,6,3,6,9,4,8,12)
+    group = factor(rep(c("A", "B", "C"), times = 4)),
+    outcome = c(1, 2, 3, 2, 4, 6, 3, 6, 9, 4, 8, 12)
   )
   meta <- make_meta()
   res <- tidycomp:::engine_friedman(df, meta)

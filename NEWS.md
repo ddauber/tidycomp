@@ -1,5 +1,9 @@
 # tidycomp (development version)
 
+* `engine_anova_repeated` now determines sphericity internally and selects an
+  appropriate correction (none, GG, or HF) before fitting a single
+  `afex::aov_ez()` model.
+
 # tidycomp 0.2.0
 
 * Added paired 2-group comparisons: `engine_paired_t` and `engine_wilcoxon_signed_rank`.

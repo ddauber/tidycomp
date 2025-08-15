@@ -235,6 +235,43 @@
   an["g", "Pr(>F)"]
 }
 
+#' Extract Mauchly p-value from sphericity results
+#'
+#' Given sphericity results, return the first Mauchly p-value for standard
+#' within-subject effect names. If unavailable, returns `NA`.
+#'
+#' @param sp A tibble/data frame with columns `Effect` and `p`, or a numeric
+#'   vector as returned by [performance::check_sphericity()].
+#' @return Numeric scalar p-value or `NA_real_`.
+#' @keywords internal
+#' @noRd
+.extract_sphericity_p <- function(sp) {
+  if (is.null(sp)) {
+    return(NA_real_)
+  }
+
+  if (is.numeric(sp) && !is.data.frame(sp)) {
+    eff <- names(sp)
+    if (is.null(eff)) {
+      eff <- rep(NA_character_, length(sp))
+    }
+    sp <- tibble::tibble(Effect = eff, p = as.numeric(sp))
+  } else {
+    sp <- tryCatch(tibble::as_tibble(sp), error = function(e) NULL)
+  }
+
+  if (is.null(sp) || !all(c("Effect", "p") %in% names(sp))) {
+    return(NA_real_)
+  }
+
+  p <- sp$p[sp$Effect %in% c("group", "group (within)", "within: group")]
+  if (length(p) == 0) {
+    return(NA_real_)
+  }
+
+  as.numeric(p[1])
+}
+
 #' Check if the `effectsize` package is installed
 #'
 #' This internal helper is used to determine whether the \pkg{effectsize}
@@ -254,4 +291,28 @@
 #' @keywords internal
 .has_effectsize <- function() {
   requireNamespace("effectsize", quietly = TRUE)
+}
+
+#' Map engine id to default effect size type
+#'
+#' @param engine Engine identifier
+#' @return Character string with default effect size type
+#' @keywords internal
+#' @noRd
+.engine_effect_hint <- function(engine) {
+  switch(
+    engine,
+    welch_t = "d",
+    student_t = "d",
+    mann_whitney = "rank_biserial",
+    paired_t = "d",
+    wilcoxon_signed_rank = "rank_biserial",
+    anova_oneway_equal = "omega2",
+    anova_oneway_welch = "omega2",
+    kruskal_wallis = "epsilon2",
+    anova_repeated = "ges",
+    anova_repeated_base = "ges",
+    friedman = "kendalls_w",
+    NULL
+  )
 }

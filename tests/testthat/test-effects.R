@@ -1,232 +1,345 @@
-# effects() should error when called before test() has populated spec$fitted
-# -------------------------------------------------------------------------
-test_that("effects() errors if no fitted results are present", {
-  spec <- comp_spec(mtcars)
-  spec <- set_roles(spec, outcome = mpg, group = am)
-  expect_snapshot(error = TRUE, effects(spec))
-})
+library(testthat)
+library(tidycomp)
 
-# Engine-specific effect size calculations
-# ----------------------------------------
+# default resolution without set_effects()
 
-# Student's t-test returns Cohen's d ----
+test_that("effects() uses engine hint when no set_effects()", {
+  df <- tibble::tibble(
+    outcome = c(1, 2, 3, 4, 10, 20, 30, 40),
+    group = factor(rep(c("A", "B"), each = 4))
+  )
 
-test_that("effects() computes Cohen's d for student_t engine (active)", {
-  out <-
-    comp_spec(mtcars) |>
-    set_roles(outcome = mpg, group = am) |>
-    set_design("independent") |>
-    set_outcome_type("numeric") |>
-    set_engine("student_t") |>
-    test() |>
-    effects(conf_level = 0.90)
-
-  expect_equal(out$fitted$es_metric, "Cohens_d")
-  expect_type(out$fitted$es_value, "double")
-  expect_type(out$fitted$es_conf_low, "double")
-  expect_type(out$fitted$es_conf_high, "double")
-})
-
-# Welch's t-test defaults to Hedges' g ----
-test_that("effects() computes Hedges g for welch_t engine", {
-  out <- comp_spec(mtcars) |>
-    set_roles(outcome = mpg, group = am) |>
+  spec <- comp_spec(df) |>
+    set_roles(outcome = outcome, group = group) |>
     set_design("independent") |>
     set_outcome_type("numeric") |>
     set_engine("welch_t") |>
     test() |>
-    effects(conf_level = 0.90)
+    effects()
 
-  expect_equal(out$fitted$es_metric, "Hedges_g")
-  expect_type(out$fitted$es_value, "double")
-  expect_type(out$fitted$es_conf_low, "double")
-  expect_type(out$fitted$es_conf_high, "double")
+  expect_s3_class(spec$effects, "tbl_df")
+  expect_equal(spec$effects$type, "d")
 })
 
-# Welch's t-test can compute Cohen's d when requested
-# ---------------------------------------------------
-test_that("effects() allows Cohen's d via effect argument", {
-  out <-
-    comp_spec(mtcars) |>
-    set_roles(outcome = mpg, group = am) |>
+# automatic computation during test()
+
+test_that("set_effects(compute=TRUE) triggers computation in test()", {
+  df <- tibble::tibble(
+    outcome = c(1, 2, 3, 4, 10, 20, 30, 40),
+    group = factor(rep(c("A", "B"), each = 4))
+  )
+
+  spec <- comp_spec(df) |>
+    set_roles(outcome = outcome, group = group) |>
     set_design("independent") |>
     set_outcome_type("numeric") |>
     set_engine("welch_t") |>
-    test() |>
-    effects(effect = "cohens_d", conf_level = 0.90)
+    set_effects(compute = TRUE)
 
-  expect_equal(out$fitted$es_metric, "Cohens_d")
-  expect_type(out$fitted$es_value, "double")
-  expect_type(out$fitted$es_conf_low, "double")
-  expect_type(out$fitted$es_conf_high, "double")
+  spec <- test(spec)
+
+  expect_s3_class(spec$effects, "tbl_df")
+  expect_equal(spec$effects$type, "d")
 })
 
-# Mann-Whitney uses rank biserial correlation ----
-test_that("effects() computes rank biserial for mann_whitney engine", {
-  out <-
-    comp_spec(mtcars) |>
-    set_roles(outcome = mpg, group = am) |>
+# effects() runs test() if needed
+
+test_that("effects() runs test() on spec if needed", {
+  df <- tibble::tibble(
+    outcome = c(1, 2, 3, 4, 10, 20, 30, 40),
+    group = factor(rep(c("A", "B"), each = 4))
+  )
+
+  spec <- comp_spec(df) |>
+    set_roles(outcome = outcome, group = group) |>
     set_design("independent") |>
     set_outcome_type("numeric") |>
-    set_engine("mann_whitney") |>
-    test() |>
-    effects(conf_level = 0.90)
+    set_engine("welch_t")
 
-  expect_equal(out$fitted$es_metric, "r_Wilcoxon")
-  expect_type(out$fitted$es_value, "double")
-  expect_type(out$fitted$es_conf_low, "double")
-  expect_type(out$fitted$es_conf_high, "double")
+  spec <- effects(spec)
+
+  expect_s3_class(spec$fitted, "comp_result")
+  expect_s3_class(spec$effects, "tbl_df")
 })
 
-# Paired t and Wilcoxon signed-rank ----
+# effects on fitted result with attached model
 
-test_that("effects() computes Cohen's d for paired_t engine", {
+test_that("effects() works on a fitted result", {
+  df <- tibble::tibble(
+    outcome = c(1, 2, 3, 4, 5, 6, 7, 8, 9),
+    group = factor(rep(c("A", "B", "C"), each = 3))
+  )
+
+  spec <- comp_spec(df) |>
+    set_roles(outcome = outcome, group = group) |>
+    set_design("independent") |>
+    set_outcome_type("numeric") |>
+    set_engine("anova_oneway_equal") |>
+    test()
+
+  fit <- spec$fitted
+  es <- effects(fit)
+
+  expect_s3_class(es, "tbl_df")
+  expect_false(is.null(attr(es, "model")))
+})
+
+# effects on repeated-measures ANOVA
+
+test_that("effects() locates model for repeated measures", {
+  skip_if_not_installed("effectsize")
+
+  df <- tibble::tibble(
+    id = rep(1:4, each = 3),
+    group = factor(rep(c("A", "B", "C"), times = 4)),
+    outcome = c(1, 2, 3, 4, 5, 7, 7, 8, 9, 10, 11, 12)
+  )
+
+  spec <- comp_spec(df) |>
+    set_roles(outcome = outcome, group = group, id = id) |>
+    set_design("repeated") |>
+    set_outcome_type("numeric") |>
+    set_engine("anova_repeated") |>
+    test()
+
+  fit <- spec$fitted
+  es <- effects(fit)
+
+  expect_s3_class(es, "tbl_df")
+  expect_false(is.null(attr(es, "model")))
+})
+
+# Cohen's d for paired designs
+test_that("effects() computes Cohen's d for paired design", {
+  skip_if_not_installed("effectsize")
+
   df <- tibble::tibble(
     id = rep(1:5, each = 2),
     group = factor(rep(c("A", "B"), times = 5)),
-    outcome = c(1, 4, 2, 2, 3, 10, 11, 12, 12, 16)
+    outcome = c(3, 4, 4, 6, 5, 9, 6, 7, 7, 10)
   )
-  out <- comp_spec(df) |>
+
+  spec <- comp_spec(df) |>
     set_roles(outcome = outcome, group = group, id = id) |>
     set_design("paired") |>
     set_outcome_type("numeric") |>
     set_engine("paired_t") |>
     test() |>
-    effects(conf_level = 0.90)
-  expect_equal(out$fitted$es_metric, "Cohens_d")
-  expect_type(out$fitted$es_value, "double")
+    effects()
+
+  wide <- tidycomp:::.standardize_paired_numeric(df, "outcome", "group", "id")
+  g <- names(wide)
+  expected <- effectsize::cohens_d(wide[[g[2]]], wide[[g[1]]], paired = TRUE)
+
+  expect_s3_class(spec$effects, "tbl_df")
+  expect_equal(spec$effects$estimate, expected$Cohens_d)
 })
 
-test_that("effects() computes rank biserial for wilcoxon_signed_rank engine", {
+# Rank-biserial for paired Wilcoxon tests
+test_that("effects() computes rank-biserial for paired design", {
+  skip_if_not_installed("effectsize")
+
   df <- tibble::tibble(
-    id = rep(1:6, each = 2),
-    group = factor(rep(c("A", "B"), times = 6)),
-    outcome = c(1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7)
+    id = rep(1:5, each = 2),
+    group = factor(rep(c("A", "B"), times = 5)),
+    outcome = c(3, 4, 4, 6, 5, 9, 6, 7, 7, 10)
   )
-  out <- comp_spec(df) |>
+
+  spec <- comp_spec(df) |>
     set_roles(outcome = outcome, group = group, id = id) |>
     set_design("paired") |>
     set_outcome_type("numeric") |>
     set_engine("wilcoxon_signed_rank") |>
     test() |>
-    effects(conf_level = 0.90)
-  expect_equal(out$fitted$es_metric, "r_Wilcoxon")
-  expect_type(out$fitted$es_value, "double")
+    effects()
+
+  wide <- tidycomp:::.standardize_paired_numeric(df, "outcome", "group", "id")
+  g <- names(wide)
+  expected <- effectsize::rank_biserial(
+    wide[[g[2]]],
+    wide[[g[1]]],
+    paired = TRUE
+  )
+
+  expect_s3_class(spec$effects, "tbl_df")
+  expect_equal(spec$effects$estimate, expected[[1]])
 })
 
-# Multi-group engines ----
+# Kendall's W for Friedman tests
+test_that("effects() computes Kendall's W for Friedman design", {
+  skip_if_not_installed("effectsize")
 
-test_that("effects() computes eta squared for anova_oneway_equal engine", {
+  set.seed(1)
   df <- tibble::tibble(
-    outcome = c(1, 2, 3, 4, 5, 6, 7, 8, 9),
-    group = factor(rep(c("A", "B", "C"), each = 3))
+    id = rep(1:5, each = 3),
+    group = factor(rep(c("A", "B", "C"), times = 5)),
+    outcome = rnorm(15)
   )
+
+  spec <- comp_spec(df) |>
+    set_roles(outcome = outcome, group = group, id = id) |>
+    set_design("repeated") |>
+    set_outcome_type("numeric") |>
+    set_engine("friedman") |>
+    test() |>
+    effects()
+
+  expected <- effectsize::kendalls_w(outcome ~ group | id, data = df)
+
+  expect_s3_class(spec$effects, "tbl_df")
+  expect_equal(spec$effects$estimate, expected[[1]])
+})
+
+# Additional parity tests for effect sizes ------------------------------------
+
+for (eng in c("welch_t", "student_t")) {
+  test_that(paste0("effects() computes Cohen's d for ", eng), {
+    skip_if_not_installed("effectsize")
+
+    df <- tibble::tibble(
+      outcome = c(1, 2, 3, 4, 10, 20, 30, 40),
+      group = factor(rep(c("A", "B"), each = 4))
+    )
+
+    spec <- comp_spec(df) |>
+      set_roles(outcome = outcome, group = group) |>
+      set_design("independent") |>
+      set_outcome_type("numeric") |>
+      set_engine(eng) |>
+      test() |>
+      effects()
+
+    expected <- effectsize::cohens_d(outcome ~ group, data = df)
+    expect_equal(spec$effects$estimate, expected$Cohens_d)
+  })
+}
+
+test_that("effects() computes rank-biserial for mann_whitney", {
+  skip_if_not_installed("effectsize")
+
+  df <- tibble::tibble(
+    outcome = c(1, 2, 3, 4, 2, 3, 4, 5),
+    group = factor(rep(c("A", "B"), each = 4))
+  )
+
   spec <- comp_spec(df) |>
     set_roles(outcome = outcome, group = group) |>
-    set_design("independent") |>
-    set_outcome_type("numeric")
-  spec$fitted <- list(engine = "anova_oneway_equal")
-  out <- effects(spec, conf_level = 0.90)
-  expect_equal(out$fitted$es_metric, "Eta2")
-  expect_type(out$fitted$es_value, "double")
-})
-
-test_that("effects() computes omega squared for anova_oneway_welch engine", {
-  df <- tibble::tibble(
-    outcome = c(1, 2, 3, 4, 5, 6, 7, 8, 9),
-    group = factor(rep(c("A", "B", "C"), each = 3))
-  )
-  spec <- comp_spec(df) |>
-    set_roles(outcome = outcome, group = group) |>
-    set_design("independent") |>
-    set_outcome_type("numeric")
-  spec$fitted <- list(engine = "anova_oneway_welch")
-  out <- effects(spec, conf_level = 0.90)
-  expect_equal(out$fitted$es_metric, "Omega2")
-  expect_type(out$fitted$es_value, "double")
-})
-
-test_that("effects() computes epsilon squared for kruskal_wallis engine", {
-  df <- tibble::tibble(
-    outcome = c(1, 2, 3, 4, 5, 6, 7, 8, 9),
-    group = factor(rep(c("A", "B", "C"), each = 3))
-  )
-  spec <- comp_spec(df) |>
-    set_roles(outcome = outcome, group = group) |>
-    set_design("independent") |>
-    set_outcome_type("numeric")
-  spec$fitted <- list(engine = "kruskal_wallis")
-  out <- effects(spec, conf_level = 0.90)
-  expect_equal(out$fitted$es_metric, "Epsilon2")
-  expect_type(out$fitted$es_value, "double")
-})
-
-test_that("effects() allows custom effect size functions", {
-  df <- tibble::tibble(
-    outcome = c(1, 2, 3, 4, 5, 6, 7, 8, 9),
-    group = factor(rep(c("A", "B", "C"), each = 3))
-  )
-  spec <- comp_spec(df) |>
-    set_roles(outcome = outcome, group = group) |>
-    set_design("independent") |>
-    set_outcome_type("numeric")
-  spec$fitted <- list(engine = "anova_oneway_equal")
-  out <- effects(spec, effect = "omega_squared", conf_level = 0.90)
-  expect_equal(out$fitted$es_metric, "Omega2")
-  expect_type(out$fitted$es_value, "double")
-})
-
-# Unknown engines fallback to Hedges' g with a warning ----
-test_that("effects() defaults to Hedges g for unknown engine (with warning)", {
-  fit <- comp_spec(mtcars) |>
-    set_roles(outcome = mpg, group = am) |>
     set_design("independent") |>
     set_outcome_type("numeric") |>
-    set_engine("student_t") |>
-    test()
+    set_engine("mann_whitney") |>
+    test() |>
+    effects()
 
-  # Simulate an unknown engine AFTER fitting
-  fit$fitted$engine <- "unknown_engine"
-
-  expect_warning(
-    out <- effects(fit, conf_level = 0.90),
-    regexp = "Unknown engine" # keep it loose to avoid punctuation mismatches
-  )
-
-  expect_equal(out$fitted$es_metric, "Hedges_g")
-  expect_type(out$fitted$es_value, "double")
-  expect_type(out$fitted$es_conf_low, "double")
-  expect_type(out$fitted$es_conf_high, "double")
+  rb <- effectsize::rank_biserial(outcome ~ group, data = df)
+  est <- rb$r_rank_biserial
+  if (is.null(est)) {
+    est <- rb$Rank_biserial
+  }
+  if (is.null(est)) {
+    est <- rb[[1]]
+  }
+  expect_equal(spec$effects$estimate, est)
 })
 
-# Multi-group engines are standardised correctly ----
-test_that("effects() standardizes data for multi-group engines", {
-  out <- comp_spec(iris) |>
-    set_roles(outcome = Sepal.Length, group = Species) |>
+test_that("effects() computes omega squared for one-way ANOVA", {
+  skip_if_not_installed("effectsize")
+
+  df <- tibble::tibble(
+    outcome = c(1, 2, 3, 4, 5, 6, 7, 8, 9),
+    group = factor(rep(c("A", "B", "C"), each = 3))
+  )
+
+  spec <- comp_spec(df) |>
+    set_roles(outcome = outcome, group = group) |>
+    set_design("independent") |>
+    set_outcome_type("numeric") |>
+    set_engine("anova_oneway_equal") |>
+    test()
+
+  # Fit a comparable ANOVA model for reference
+  expected <- effectsize::omega_squared(aov(outcome ~ group, data = df))
+
+  # Get the relevant column name
+  col <- intersect(c("Omega2", "omega.sq", "omega_sq"), names(expected))[1]
+  expect_true(length(col) == 1, info = "No matching omega-squared column found")
+
+  spec <- effects(spec)
+
+  expect_equal(
+    spec$effects$estimate,
+    expected[[col]][1],
+    tolerance = 1e-8
+  )
+})
+
+test_that("effects() computes omega squared for Welch ANOVA", {
+  skip_if_not_installed("effectsize")
+
+  df <- tibble::tibble(
+    outcome = c(1, 2, 3, 4, 5, 6, 7, 8, 9),
+    group = factor(rep(c("A", "B", "C"), each = 3))
+  )
+
+  spec <- comp_spec(df) |>
+    set_roles(outcome = outcome, group = group) |>
+    set_design("independent") |>
+    set_outcome_type("numeric") |>
+    set_engine("anova_oneway_welch") |>
+    test() |>
+    effects(type = "omega2")
+  expect_s3_class(spec$effects, "tbl_df")
+  expect_equal(spec$effects$type, "omega2")
+  expect_false(is.na(spec$effects$estimate))
+})
+
+test_that("effects() computes rank epsilon squared for kruskal_wallis", {
+  skip_if_not_installed("effectsize")
+
+  df <- tibble::tibble(
+    outcome = c(1, 2, 3, 4, 5, 6, 7, 8, 9),
+    group = factor(rep(c("A", "B", "C"), each = 3))
+  )
+
+  spec <- comp_spec(df) |>
+    set_roles(outcome = outcome, group = group) |>
     set_design("independent") |>
     set_outcome_type("numeric") |>
     set_engine("kruskal_wallis") |>
     test() |>
-    effects(conf_level = 0.90)
+    effects()
 
-  expect_type(out$fitted$es_value, "double")
+  expected <- effectsize::rank_epsilon_squared(outcome ~ group, data = df)
+  expect_equal(spec$effects$estimate, expected[[1]])
 })
 
-# When effectsize package is not available ----
-test_that("effects() warns and returns input when effectsize is absent", {
-  testthat::local_mocked_bindings(
-    .has_effectsize = function() FALSE,
-    .env = asNamespace("tidycomp")
+test_that("effects() computes generalized eta squared for repeated measures", {
+  skip_if_not_installed("effectsize")
+
+  df <- tibble::tibble(
+    id = rep(1:4, each = 3),
+    group = factor(rep(c("A", "B", "C"), times = 4)),
+    outcome = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)
   )
 
-  fit <-
-    comp_spec(mtcars) |>
-    set_roles(outcome = mpg, group = am) |>
-    set_design("independent") |>
+  spec <- comp_spec(df) |>
+    set_roles(outcome = outcome, group = group, id = id) |>
+    set_design("repeated") |>
     set_outcome_type("numeric") |>
-    set_engine("student_t") |>
+    set_engine("anova_repeated") |>
     test()
 
-  expect_warning(out <- effects(fit), "effectsize")
-  expect_identical(out, fit)
+  es <- effectsize::eta_squared(attr(spec$fitted, "model"), generalized = TRUE)
+  spec <- effects(spec)
+  col <- intersect(
+    c(
+      "GES",
+      "Eta2_G",
+      "Eta2_generalized",
+      "eta.sq.gen",
+      "eta_sq_generalized",
+      "Eta2"
+    ),
+    names(es)
+  )[1]
+  expect_equal(spec$effects$estimate, es[[col]][1])
 })

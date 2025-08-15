@@ -2,79 +2,40 @@
 % Please edit documentation in R/effects.R
 \name{effects}
 \alias{effects}
-\title{Add an effect size to a fitted comparison}
+\title{Compute and store effect sizes}
 \usage{
-effects(spec, conf_level = 0.95, effect = "default")
+effects(
+  x,
+  type = c("auto", "ges", "pes", "eta2", "omega2", "epsilon2", "d", "g", "rank_biserial",
+    "kendalls_w", "r2"),
+  conf_level = 0.95
+)
 }
 \arguments{
-\item{spec}{A \code{comp_spec} created by \code{\link[=comp_spec]{comp_spec()}} and already fitted
-via \code{test()} (i.e., \code{spec$fitted} must exist). Roles must include a
-numeric outcome and a grouping variable.}
+\item{x}{A spec produced by \code{comp_spec()} (optionally already tested),
+or a fitted result with an attached model (i.e., \code{attr(x, "model")}).}
 
-\item{conf_level}{Confidence level for the interval (numeric in (0, 1),
-default \code{0.95}).}
+\item{type}{Effect size type. Use \code{"auto"} to let the function choose
+an engine-/class-based default. Supported values: \code{"ges"}, \code{"pes"},
+\code{"eta2"}, \code{"omega2"}, \code{"epsilon2"}, \code{"d"}, \code{"g"},
+\code{"rank_biserial"}, \code{"kendalls_w"}, \code{"r2"}.}
 
-\item{effect}{Optional name of an effect size function from the
-\strong{effectsize} package. The default (\code{"default"}) selects a sensible
-metric for the chosen engine. Any exported function from \strong{effectsize}
-(e.g., \code{"cohens_d"}, \code{"omega_squared"}) may be provided.}
+\item{conf_level}{Confidence level (e.g., \code{0.90}); \code{NULL} for none. Defaults to
+\code{0.95}.}
 }
 \value{
-The input \code{spec}, updated in place with effect‑size fields in
-\code{spec$fitted}: \code{es_value}, \code{es_conf_low}, \code{es_conf_high}, \code{es_metric}.
+If \code{x} is a spec, the updated spec with \code{$effects};
+otherwise a tibble of effect sizes.
 }
 \description{
-Compute an effect size (with a confidence interval) for a numeric outcome
-based on the inferential engine stored in \code{spec$fitted$engine}. Supported
-tests map to the following default metrics:
+Computes effect sizes for the fitted model and stores them on the spec.
+Works on a spec (will call \code{test()} if needed) or a fitted result
+(with an attached model). If no effect-size options were set with
+\code{set_effects()}, defaults are chosen automatically based on engine
+and/or model class.
 }
 \details{
-\itemize{
-\item \code{"student_t"}: Cohen's \emph{d}
-\item \code{"welch_t"}: Hedges' \emph{g}
-\item \code{"mann_whitney"}: Wilcoxon \emph{r} (rank biserial)
-\item \code{"paired_t"}: Cohen's \emph{d} for paired samples
-\item \code{"wilcoxon_signed_rank"}: Wilcoxon \emph{r} (rank biserial)
-\item \code{"anova_oneway_equal"}: Eta squared
-\item \code{"anova_oneway_welch"}: Omega squared
-\item \code{"kruskal_wallis"}: Epsilon squared
-}
-
-The function reads from \code{spec$fitted} and writes \code{es_value},
-\code{es_conf_low}, \code{es_conf_high}, and \code{es_metric} before returning \code{spec}.
-\itemize{
-\item Supported designs: two-group and multi-group comparisons with a
-\strong{numeric} outcome.
-\item Backend functions from the
-\href{https://easystats.github.io/effectsize/}{\code{effectsize}} package
-(e.g., \code{hedges_g()}, \code{cohens_d()}, \code{rank_biserial()}).
-\item If the \strong{effectsize} package is not installed, a warning is issued
-and the input \code{spec} is returned unchanged.
-}
-
-The function selects \code{spec$data_prepared} when available, otherwise
-falls back to \code{spec$data_raw}. It standardizes inputs internally and
-then calls the appropriate effect size function based on
-\code{spec$fitted$engine}.
-}
-\examples{
-# Minimal workflow (illustrative):
-spec <- comp_spec(mtcars)
-spec$roles <- list(outcome = "mpg", group = "am")  # am has two levels
-spec$outcome_type <- "numeric"
-
-# Pretend we've run the inferential test step that creates `spec$fitted`
-# (your package's `test()` function). Then add effect size:
-# spec <- test(spec)
-# spec <- effects(spec, conf_level = 0.90)
-#
-# Access results:
-# spec$fitted$es_value
-# spec$fitted$es_conf_low
-# spec$fitted$es_conf_high
-# spec$fitted$es_metric
-
-}
-\seealso{
-\code{\link[=comp_spec]{comp_spec()}}, diagnose(), test()
+For non-ANOVA tests (t, Wilcoxon, Friedman), this function computes effect
+sizes from the original data and roles (no conversion from test statistics).
+Therefore, you must call \code{effects()} on a \emph{spec} for those models.
 }

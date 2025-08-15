@@ -15,6 +15,7 @@
 #' - `group_sizes`: a tibble with counts per group.
 #' - `var_bf_p`: Brown-Forsythe proxy p‑value for variance heterogeneity.
 #' - `normality`: per-group Shapiro-Wilk p‑values (flagged only; not enforced).
+#' - `sphericity`: Mauchly p-values for repeated-measures designs.
 #' - `notes`: human-readable notes highlighting potential issues
 #'   (e.g., small groups, variance heterogeneity, non-normality, outliers).
 #'
@@ -118,29 +119,33 @@ diagnose <- function(spec) {
   }
 
   # sphericity check for repeated-measures design
-  p_mauchly <- NA_real_
+  sphericity <- NULL
   if (identical(spec$design, "repeated") && !is.null(roles$id)) {
     id <- roles$id
     .validate_cols(df, id)
-    wide <- tryCatch(
-      stats::reshape(
-        df[, c(id, group, outcome)],
-        idvar = id,
-        timevar = group,
-        direction = "wide"
-      ),
-      error = function(e) NULL
-    )
-    if (!is.null(wide)) {
-      mat <- as.matrix(wide[, setdiff(names(wide), id), drop = FALSE])
-      fit <- tryCatch(stats::lm(mat ~ 1), error = function(e) NULL)
+    if (rlang::is_installed(c("afex", "performance"))) {
+      fit <- tryCatch(
+        afex::aov_ez(id = id, dv = outcome, within = group, data = df),
+        error = function(e) NULL
+      )
       if (!is.null(fit)) {
-        p_mauchly <- tryCatch(
-          stats::mauchly.test(fit)$p.value,
-          error = function(e) NA_real_
-        )
-        if (is.finite(p_mauchly) && p_mauchly < 0.05) {
-          notes <- c(notes, "Sphericity violation flagged (Mauchly p < .05).")
+        sp <- tryCatch(performance::check_sphericity(fit), error = function(e) {
+          NULL
+        })
+        if (!is.null(sp)) {
+          if (is.data.frame(sp)) {
+            sphericity <- tibble::as_tibble(sp)
+          } else {
+            eff <- names(sp)
+            if (is.null(eff)) {
+              eff <- NA_character_
+            }
+            sphericity <- tibble::tibble(Effect = eff, p = as.numeric(sp))
+          }
+          p_mauchly <- .extract_sphericity_p(sphericity)
+          if (!is.na(p_mauchly) && is.finite(p_mauchly) && p_mauchly < 0.05) {
+            notes <- c(notes, "Sphericity violation flagged (Mauchly p < .05).")
+          }
         }
       }
     }
@@ -150,7 +155,7 @@ diagnose <- function(spec) {
     group_sizes = g_n,
     normality = norm,
     var_bf_p = p_bf,
-    sphericity_p = p_mauchly,
+    sphericity = sphericity,
     notes = notes
   )
   cli::cli_inform("Diagnostics complete. {length(notes)} note{?s} recorded.")

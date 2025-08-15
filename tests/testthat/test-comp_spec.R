@@ -16,7 +16,11 @@ test_that("comp_spec validates input and initializes structure", {
       "engine",
       "diagnostics",
       "prep_log",
-      "fitted"
+      "fitted",
+      'effects',
+      'effects_args',
+      'effects_hint',
+      'engine_args'
     )
   )
   expect_true(tibble::is_tibble(spec$data_raw))
