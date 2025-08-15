@@ -52,7 +52,10 @@ test <- function(spec) {
       "Set roles with `set_roles(outcome, group)` before `test()`."
     )
   }
-  if (is.null(spec$design) || !spec$design %in% c("independent", "paired", "repeated")) {
+  if (
+    is.null(spec$design) ||
+      !spec$design %in% c("independent", "paired", "repeated")
+  ) {
     cli::cli_abort(
       "MVP `test()` currently supports `design = 'independent'`, 'paired', or 'repeated'."
     )
@@ -74,7 +77,11 @@ test <- function(spec) {
   # engine choice
   engine <- spec$engine
   if (is.null(engine)) {
-    g_levels <- if (!is.null(spec$roles$group)) nlevels(factor(data[[spec$roles$group]])) else 0
+    g_levels <- if (!is.null(spec$roles$group)) {
+      nlevels(factor(data[[spec$roles$group]]))
+    } else {
+      0
+    }
     if (spec$design == "paired") {
       engine <- switch(
         spec$strategy,
@@ -162,9 +169,11 @@ test <- function(spec) {
     meta = list(
       roles = spec$roles,
       diagnostics = spec$diagnostics,
-      engine = list(args = spec$engine_args %||% list())
+      engine = list(args = spec$engine_args %||% list()),
+      engine_args = spec$engine_args %||% list()
     )
   )
+
   class(res) <- c("comp_result", class(res))
   attr(res, "engine_hint") <- spec$effects_hint
   spec$fitted <- res

@@ -500,8 +500,41 @@ engine_anova_repeated_base <- function(data, meta) {
 #' @param meta  A list with roles/diagnostics metadata.
 #' @keywords internal
 #' @noRd
+
 engine_anova_repeated <- function(data, meta) {
-  args <- meta$engine$args %||% list()
+  # ----- helpers -----------------------------------------------------------
+  .safe_num1 <- function(x) {
+    v <- suppressWarnings(as.numeric(x))
+    if (length(v) == 0L) NA_real_ else v[1]
+  }
+  .first_effect_row <- function(tab) {
+    rn <- rownames(tab)
+    if (is.null(rn)) {
+      1L
+    } else {
+      j <- which(!grepl("\\(Intercept\\)", rn))
+      if (length(j)) j[1] else 1L
+    }
+  }
+  .extract_p_mauchly <- function(x) {
+    if (is.null(x)) {
+      return(NA_real_)
+    }
+    if (is.numeric(x) && length(x) == 1L) {
+      return(.safe_num1(x))
+    }
+    if (is.data.frame(x) && nrow(x) > 0L) {
+      pcol <- intersect(
+        names(x),
+        c("p", "p_value", "p.value", "Pr..W.", "Pr(>W)")
+      )[1]
+      if (!is.null(pcol)) return(.safe_num1(x[[pcol]][1]))
+    }
+    NA_real_
+  }
+
+  # ----- options & standardization ----------------------------------------
+  args <- meta$engine$args %||% meta$engine_args %||% list()
   user_corr <- args$correction
   afex_args <- args$afex_args %||% list()
 
@@ -512,7 +545,7 @@ engine_anova_repeated <- function(data, meta) {
     meta$roles$id
   )
 
-  # Fallback if package missing
+  # ----- fallback if afex missing -----------------------------------------
   if (!rlang::is_installed("afex")) {
     cli::cli_warn(
       "Package {.pkg afex} not installed; using stats::aov fallback."
@@ -520,104 +553,107 @@ engine_anova_repeated <- function(data, meta) {
     return(engine_anova_repeated_base(data, meta))
   }
 
-  # ---- Step 1: obtain sphericity result -------------------------------
-  sp <- meta$diagnostics$sphericity
-  p_mauchly <- .extract_sphericity_p(sp)
+  # ----- Step 1: obtain/compute sphericity p ------------------------------
+  p_mauchly <- .extract_p_mauchly(meta$diagnostics$sphericity)
   if (
-    (is.null(sp) || length(p_mauchly) != 1 || is.na(p_mauchly)) &&
+    (!is.finite(p_mauchly) || is.na(p_mauchly)) &&
       rlang::is_installed("performance")
   ) {
-    base_args <- list(
-      id = "id",
-      dv = "outcome",
-      within = "group",
-      data = df,
-      anova_table = list(correction = "none", es = "none")
-    )
-    fit_uncorr <- try(
-      do.call(afex::aov_ez, utils::modifyList(base_args, afex_args)),
+    fit_unc <- try(
+      do.call(
+        afex::aov_ez,
+        utils::modifyList(
+          list(
+            id = "id",
+            dv = "outcome",
+            within = "group",
+            data = df,
+            anova_table = list(correction = "none", es = "none")
+          ),
+          afex_args
+        )
+      ),
       silent = TRUE
     )
-    if (!inherits(fit_uncorr, "try-error")) {
-      sp <- tryCatch(
-        performance::check_sphericity(fit_uncorr),
+    if (!inherits(fit_unc, "try-error")) {
+      sp_perf <- tryCatch(
+        performance::check_sphericity(fit_unc),
         error = function(e) NULL
       )
-      p_mauchly <- .extract_sphericity_p(sp)
+      p_mauchly <- .extract_p_mauchly(sp_perf)
     }
   }
 
-  # ---- Step 2: decide correction -------------------------------------
-  if (length(p_mauchly) != 1 || is.na(p_mauchly)) {
-    cli::cli_warn("Sphericity check failed; using uncorrected results.")
-    correction <- "none"
-  } else if (!is.null(user_corr)) {
+  # ----- Step 2: decide correction (user override wins) -------------------
+  if (!is.null(user_corr)) {
     correction <- match.arg(user_corr, c("none", "GG", "HF"))
-  } else if (p_mauchly < 0.05) {
+  } else if (is.finite(p_mauchly) && p_mauchly < 0.05) {
     correction <- "GG"
   } else {
+    if (!is.finite(p_mauchly) || is.na(p_mauchly)) {
+      cli::cli_warn(
+        "Sphericity p unavailable; using uncorrected unless overridden."
+      )
+    }
     correction <- "none"
   }
 
-  # ---- Step 3: run afex::aov_ez with chosen correction ----------------
-  base_args <- list(
-    id = "id",
-    dv = "outcome",
-    within = "group",
-    data = df,
-    anova_table = list(correction = correction, es = "none")
+  # ----- Step 3: fit once with chosen correction -------------------------
+  fit <- do.call(
+    afex::aov_ez,
+    utils::modifyList(
+      list(
+        id = "id",
+        dv = "outcome",
+        within = "group",
+        data = df,
+        anova_table = list(correction = correction, es = "none")
+      ),
+      afex_args
+    )
   )
-  fit <- do.call(afex::aov_ez, utils::modifyList(base_args, afex_args))
   tab <- as.data.frame(fit$anova_table)
 
-  F_val <- unname(tab["group", "F"])
-  df1_raw <- unname(tab["group", "num Df"])
-  df2_raw <- unname(tab["group", "den Df"])
+  # pick the effect row robustly and extract standardized scalars
+  i <- .first_effect_row(tab)
 
-  if (correction == "none") {
-    p_val <- unname(tab["group", "Pr(>F)"])
-    df1 <- df1_raw
-    df2 <- df2_raw
-    metric <- "uncorrected"
-    notes <- meta$diagnostics$notes %||% character()
-  } else if (correction == "GG") {
-    eps <- unname(tab["group", "GG eps"])
-    df1 <- df1_raw * eps
-    df2 <- df2_raw * eps
-    p_val <- if ("Pr(>F[GG])" %in% colnames(tab)) {
-      unname(tab["group", "Pr(>F[GG])"])
-    } else {
-      stats::pf(F_val, df1, df2, lower.tail = FALSE)
-    }
-    metric <- "GG"
-    notes <- c(
-      meta$diagnostics$notes %||% character(),
-      "Reported with GG correction."
-    )
-  } else if (correction == "HF") {
-    eps <- unname(tab["group", "HF eps"])
-    df1 <- df1_raw * eps
-    df2 <- df2_raw * eps
-    p_val <- if ("Pr(>F[HF])" %in% colnames(tab)) {
-      unname(tab["group", "Pr(>F[HF])"])
-    } else {
-      stats::pf(F_val, df1, df2, lower.tail = FALSE)
-    }
-    metric <- "HF"
-    notes <- c(
-      meta$diagnostics$notes %||% character(),
-      "Reported with HF correction."
-    )
-  } else {
-    cli::cli_warn("Lower-bound correction not implemented in this engine yet.")
-    p_val <- unname(tab["group", "Pr(>F)"])
-    df1 <- df1_raw
-    df2 <- df2_raw
-    metric <- "uncorrected"
-    notes <- meta$diagnostics$notes %||% character()
+  need <- c("num Df", "den Df", "MSE", "F", "Pr(>F)")
+  miss <- setdiff(need, names(tab))
+  if (length(miss)) {
+    cli::cli_abort(c(
+      "afex anova_table is missing expected columns.",
+      "x" = "Missing: {.val {miss}}",
+      "i" = "Available: {.val {names(tab)}}"
+    ))
   }
 
-  # ---- Step 4: populate fitted ---------------------------------------
+  F_val <- .safe_num1(tab[i, "F", drop = TRUE])
+  df1 <- .safe_num1(tab[i, "num Df", drop = TRUE])
+  df2 <- .safe_num1(tab[i, "den Df", drop = TRUE])
+  p_val <- .safe_num1(tab[i, "Pr(>F)", drop = TRUE])
+  if (!is.finite(p_val)) {
+    p_val <- stats::pf(F_val, df1, df2, lower.tail = FALSE)
+  }
+
+  # ----- Step 4: notes & result ------------------------------------------
+  base_notes <- meta$diagnostics$notes %||% character()
+  note <- if (is.finite(p_mauchly)) {
+    if (identical(correction, "none")) {
+      sprintf(
+        "Sphericity not violated (Mauchly p = %.3g); uncorrected results reported.",
+        p_mauchly
+      )
+    } else {
+      sprintf(
+        "Sphericity violated (Mauchly p = %.3g); %s correction reported.",
+        p_mauchly,
+        correction
+      )
+    }
+  } else {
+    "Sphericity p unavailable; uncorrected results reported."
+  }
+
   res <- tibble::tibble(
     test = "anova_repeated",
     method = "Repeated measures ANOVA",
@@ -631,17 +667,17 @@ engine_anova_repeated <- function(data, meta) {
     estimate = NA_real_,
     conf.low = NA_real_,
     conf.high = NA_real_,
-    metric = metric,
-    notes = list(notes)
+    metric = if (identical(correction, "none")) "uncorrected" else correction,
+    notes = list(c(base_notes, note))
   )
 
-  sp_df <- NULL
+  # keep whatever sphericity object you had (as tibble if possible)
+  sp <- meta$diagnostics$sphericity
   if (!is.null(sp)) {
-    sp_df <- tryCatch(tibble::as_tibble(sp), error = function(e) sp)
+    sp <- tryCatch(tibble::as_tibble(sp), error = function(e) sp)
   }
-
   attr(res, "model") <- fit
-  attr(res, "diagnostics") <- list(sphericity = sp_df)
+  attr(res, "diagnostics") <- list(sphericity = sp)
   res
 }
 
