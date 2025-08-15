@@ -1,8 +1,8 @@
 # tidycomp (development version)
 
-* `engine_anova_repeated` now computes sphericity internally when diagnostics
-  are absent and automatically applies Greenhouse-Geisser or Huynh-Feldt
-  corrections when violations are detected.
+* `engine_anova_repeated` now determines sphericity internally and selects an
+  appropriate correction (none, GG, or HF) before fitting a single
+  `afex::aov_ez()` model.
 
 # tidycomp 0.2.0
 
