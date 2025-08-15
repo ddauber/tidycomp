@@ -158,5 +158,30 @@ test_that("effects() computes rank-biserial for paired design", {
   expected <- effectsize::rank_biserial(wide[[g[2]]], wide[[g[1]]], paired = TRUE)
 
   expect_s3_class(spec$effects, "tbl_df")
-  expect_equal(spec$effects$estimate, expected$Rank_biserial)
+  expect_equal(spec$effects$estimate, expected[[1]])
+})
+
+# Kendall's W for Friedman tests
+test_that("effects() computes Kendall's W for Friedman design", {
+  skip_if_not_installed("effectsize")
+
+  set.seed(1)
+  df <- tibble::tibble(
+    id = rep(1:5, each = 3),
+    group = factor(rep(c("A", "B", "C"), times = 5)),
+    outcome = rnorm(15)
+  )
+
+  spec <- comp_spec(df) |>
+    set_roles(outcome = outcome, group = group, id = id) |>
+    set_design("repeated") |>
+    set_outcome_type("numeric") |>
+    set_engine("friedman") |>
+    test() |>
+    effects()
+
+  expected <- effectsize::kendalls_w(outcome ~ group | id, data = df)
+
+  expect_s3_class(spec$effects, "tbl_df")
+  expect_equal(spec$effects$estimate, expected[[1]])
 })
