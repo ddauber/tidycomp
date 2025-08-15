@@ -9,7 +9,7 @@ test_that("diagnose attaches diagnostics with expected structure", {
 
   expect_named(
     spec$diagnostics,
-    c("group_sizes", "normality", "var_bf_p", "sphericity", "sphericity_p", "notes")
+    c("group_sizes", "normality", "var_bf_p", "sphericity", "notes")
   )
   expect_s3_class(spec$diagnostics$group_sizes, "tbl_df")
   expect_s3_class(spec$diagnostics$normality, "tbl_df")
@@ -85,6 +85,6 @@ test_that("diagnose computes sphericity p-value for repeated design", {
     set_design("repeated") |>
     set_outcome_type("numeric")
   spec <- diagnose(spec)
-  expect_true("sphericity_p" %in% names(spec$diagnostics))
   expect_s3_class(spec$diagnostics$sphericity, "tbl_df")
+  expect_true(is.numeric(spec$diagnostics$sphericity$p[1]))
 })
