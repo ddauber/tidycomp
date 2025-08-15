@@ -164,7 +164,6 @@ diagnose <- function(spec) {
     normality = norm,
     var_bf_p = p_bf,
     sphericity = sphericity,
-    sphericity_p = p_mauchly,
     notes = notes
   )
   cli::cli_inform("Diagnostics complete. {length(notes)} note{?s} recorded.")

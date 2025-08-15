@@ -224,6 +224,23 @@ test_that("anova_repeated works with non-standard group column names", {
   expect_false(is.na(res$p.value))
 })
 
+test_that("anova_repeated uses sphericity diagnostics p when p-value missing", {
+  skip_if_not_installed("afex")
+  skip_if_not_installed("performance")
+
+  df <- tibble::tibble(
+    id = rep(1:4, each = 3),
+    group = factor(rep(c("A", "B", "C"), times = 4)),
+    outcome = rnorm(12)
+  )
+  meta <- make_meta()
+  meta$diagnostics$sphericity <- tibble::tibble(Effect = "group", p = 0.02)
+
+  res <- tidycomp:::engine_anova_repeated(df, meta)
+  diag <- attr(res, "diagnostics")
+  expect_equal(diag$sphericity$p[1], 0.02)
+})
+
 # Friedman --------------------------------------------------------------------
 
 test_that("friedman engine matches stats::friedman.test", {

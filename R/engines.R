@@ -556,21 +556,22 @@ engine_anova_repeated <- function(data, meta) {
   p_raw <- unname(tab["group", "Pr(>F)"])
 
   # Sphericity check: prefer diagnostics supplied in `meta`; otherwise compute
-  sp <- meta$diagnostics$sphericity
-  p_mauchly <- meta$diagnostics$sphericity_p %||% NA_real_
-  if (is.null(sp)) {
-    sp <- tryCatch(performance::check_sphericity(fit), error = function(e) NULL)
-  }
-  if (is.na(p_mauchly) || !is.finite(p_mauchly)) {
-    p_mauchly <- tryCatch(
+  extract_p <- function(sp_obj) {
+    tryCatch(
       {
-        as.numeric(tibble::as_tibble(sp)$p[
-          tibble::as_tibble(sp)$Effect %in%
-            c("group", "group (within)", "within: group")
+        sp_tbl <- tibble::as_tibble(sp_obj)
+        as.numeric(sp_tbl$p[
+          sp_tbl$Effect %in% c("group", "group (within)", "within: group")
         ][1])
       },
       error = function(e) NA_real_
     )
+  }
+  sp <- meta$diagnostics$sphericity
+  p_mauchly <- extract_p(sp)
+  if (is.null(sp)) {
+    sp <- tryCatch(performance::check_sphericity(fit), error = function(e) NULL)
+    p_mauchly <- extract_p(sp)
   }
 
   # Epsilons available in afex table
@@ -707,7 +708,7 @@ engine_anova_repeated <- function(data, meta) {
   }
 
   attr(res, "model") <- fit
-  attr(res, "diagnostics") <- list(sphericity = sp_df, sphericity_p = p_mauchly)
+  attr(res, "diagnostics") <- list(sphericity = sp_df)
   res
 }
 
