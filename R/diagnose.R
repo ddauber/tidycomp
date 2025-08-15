@@ -15,6 +15,7 @@
 #' - `group_sizes`: a tibble with counts per group.
 #' - `var_bf_p`: Brown-Forsythe proxy p‑value for variance heterogeneity.
 #' - `normality`: per-group Shapiro-Wilk p‑values (flagged only; not enforced).
+#' - `sphericity`: Mauchly p-values for repeated-measures designs.
 #' - `notes`: human-readable notes highlighting potential issues
 #'   (e.g., small groups, variance heterogeneity, non-normality, outliers).
 #'
@@ -119,7 +120,6 @@ diagnose <- function(spec) {
 
   # sphericity check for repeated-measures design
   sphericity <- NULL
-  p_mauchly <- NA_real_
   if (identical(spec$design, "repeated") && !is.null(roles$id)) {
     id <- roles$id
     .validate_cols(df, id)
@@ -142,15 +142,7 @@ diagnose <- function(spec) {
             }
             sphericity <- tibble::tibble(Effect = eff, p = as.numeric(sp))
           }
-          p_mauchly <- tryCatch(
-            {
-              as.numeric(sphericity$p[
-                sphericity$Effect %in%
-                  c("group", "group (within)", "within: group")
-              ][1])
-            },
-            error = function(e) NA_real_
-          )
+          p_mauchly <- .extract_sphericity_p(sphericity)
           if (!is.na(p_mauchly) && is.finite(p_mauchly) && p_mauchly < 0.05) {
             notes <- c(notes, "Sphericity violation flagged (Mauchly p < .05).")
           }
@@ -164,7 +156,6 @@ diagnose <- function(spec) {
     normality = norm,
     var_bf_p = p_bf,
     sphericity = sphericity,
-    sphericity_p = p_mauchly,
     notes = notes
   )
   cli::cli_inform("Diagnostics complete. {length(notes)} note{?s} recorded.")

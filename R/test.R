@@ -96,10 +96,13 @@ test <- function(spec) {
         "anova_repeated"
       )
       diag <- spec$diagnostics
-      if (!is.null(diag) && is.finite(diag$sphericity_p) && !is.na(diag$sphericity_p) && diag$sphericity_p < 0.05) {
-        cli::cli_warn(
-          "Sphericity violation detected; consider `set_engine('friedman')`."
-        )
+      if (!is.null(diag)) {
+        p_mauchly <- .extract_sphericity_p(diag$sphericity)
+        if (is.finite(p_mauchly) && !is.na(p_mauchly) && p_mauchly < 0.05) {
+          cli::cli_warn(
+            "Sphericity violation detected; consider `set_engine('friedman')`."
+          )
+        }
       }
     } else {
       if (g_levels > 2) {

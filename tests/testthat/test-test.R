@@ -163,9 +163,9 @@ test_that("nudge toward Mann-Whitney for small n and non-normal data", {
   spec$diagnostics <- list(
     group_sizes = tibble(n = c(10, 14)),
     normality = tibble(p_shapiro = c(0.001, 0.001)),
-    notes = character(),
     var_bf_p = NA,
-    sphericity_p = NA
+    sphericity = NULL,
+    notes = character()
   )
   expect_warning(suppressMessages(test(spec)), "mann_whitney")
 })
@@ -186,7 +186,7 @@ test_that("nudge toward Friedman when sphericity violated", {
     group_sizes = tibble(n = c(4, 4, 4)),
     normality = tibble(p_shapiro = c(0.5, 0.5, 0.5)),
     var_bf_p = NA,
-    sphericity_p = 0.01,
+    sphericity = tibble(Effect = "group", p = 0.01),
     notes = character()
   )
   expect_warning(suppressMessages(test(spec)), "friedman")

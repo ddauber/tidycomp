@@ -235,6 +235,22 @@
   an["g", "Pr(>F)"]
 }
 
+#' Extract Mauchly p-value from sphericity results
+#'
+#' Given a sphericity table, return the first Mauchly p-value for standard
+#' within-subject effect names. If unavailable, returns `NA`.
+#'
+#' @param sp A data frame or tibble with columns `Effect` and `p`.
+#' @return Numeric scalar p-value or `NA_real_`.
+#' @keywords internal
+#' @noRd
+.extract_sphericity_p <- function(sp) {
+  tryCatch({
+    sp <- tibble::as_tibble(sp)
+    as.numeric(sp$p[sp$Effect %in% c("group", "group (within)", "within: group")][1])
+  }, error = function(e) NA_real_)
+}
+
 #' Check if the `effectsize` package is installed
 #'
 #' This internal helper is used to determine whether the \pkg{effectsize}
