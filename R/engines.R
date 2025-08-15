@@ -525,14 +525,10 @@ engine_anova_repeated <- function(data, meta) {
     meta$roles$id
   )
 
-  # Fallback if packages missing
-  if (!rlang::is_installed(c("afex", "performance"))) {
-    missing_pkgs <- c("afex", "performance")[
-      !rlang::is_installed(c("afex", "performance"))
-    ]
+  # Fallback if package missing
+  if (!rlang::is_installed("afex")) {
     cli::cli_warn(
-      "Package{?s} {.pkg {missing_pkgs}} not installed; using stats::aov fallback.",
-      pkg = missing_pkgs
+      "Package {.pkg afex} not installed; using stats::aov fallback."
     )
     return(engine_anova_repeated_base(data, meta))
   }
@@ -555,11 +551,8 @@ engine_anova_repeated <- function(data, meta) {
   df2_raw <- unname(tab["group", "den Df"])
   p_raw <- unname(tab["group", "Pr(>F)"])
 
-  # Sphericity check: prefer diagnostics supplied in `meta`; otherwise compute
+  # Sphericity check: rely on diagnostics supplied in `meta`
   sp <- meta$diagnostics$sphericity
-  if (is.null(sp)) {
-    sp <- tryCatch(performance::check_sphericity(fit), error = function(e) NULL)
-  }
   p_mauchly <- .extract_sphericity_p(sp)
 
   # Epsilons available in afex table
@@ -636,20 +629,30 @@ engine_anova_repeated <- function(data, meta) {
   # Decide what to return
   choose_auto <- function() {
     if (!is.na(p_mauchly) && p_mauchly < 0.05) {
-      # sphericity violated -> use preferred correction if available
       if (prefer_corr == "GG" && !is.null(row_GG)) {
         return(out_all[out_all$metric == "GG", ])
       }
       if (prefer_corr == "HF" && !is.null(row_HF)) {
         return(out_all[out_all$metric == "HF", ])
       }
-      # fallback: whichever exists
       return(out_all[out_all$metric %in% c("GG", "HF"), ][1, , drop = FALSE])
-    } else {
-      # sphericity OK -> uncorrected
-      return(out_all[out_all$metric == "uncorrected", ])
     }
+    out_all[out_all$metric == "uncorrected", ]
   }
+
+  selected <- switch(
+    correction,
+    auto = choose_auto(),
+    none = out_all[out_all$metric == "uncorrected", ],
+    GG = out_all[out_all$metric == "GG", ],
+    HF = out_all[out_all$metric == "HF", ],
+    LB = {
+      cli::cli_warn(
+        "Lower-bound correction not implemented in this engine yet."
+      )
+      out_all[out_all$metric == "uncorrected", ]
+    }
+  )
 
   res <- switch(
     return_df,
@@ -658,37 +661,43 @@ engine_anova_repeated <- function(data, meta) {
     GG = out_all[out_all$metric == "GG", ],
     HF = out_all[out_all$metric == "HF", ],
     LB = {
-      # LB not available in afex table; compute if requested
-      # If you want LB, add a block similar to GG/HF using car::Anova(..., correction="LB")
       cli::cli_warn(
         "Lower-bound correction not implemented in this engine yet."
       )
       out_all[out_all$metric == "uncorrected", ]
     },
-    auto = choose_auto()
+    auto = selected
   )
 
-  # Add contextual note if we auto-selected
+  # Add contextual note
   if (return_df == "auto") {
-    note <- if (!is.na(p_mauchly) && p_mauchly < 0.05) {
-      sprintf(
-        "Sphericity violated (Mauchly p = %.3g); %s correction reported.",
-        p_mauchly,
-        if (nrow(res) && res$metric[1] != "uncorrected") {
-          res$metric[1]
-        } else {
-          prefer_corr
-        }
-      )
-    } else if (!is.na(p_mauchly)) {
-      sprintf(
-        "Sphericity not violated (Mauchly p = %.3g); uncorrected results reported.",
+    if (correction == "auto") {
+      note <- if (!is.na(p_mauchly) && p_mauchly < 0.05) {
+        sprintf(
+          "Sphericity violated (Mauchly p = %.3g); %s correction reported.",
+          p_mauchly,
+          if (nrow(res) && res$metric[1] != "uncorrected") {
+            res$metric[1]
+          } else {
+            prefer_corr
+          }
+        )
+      } else if (!is.na(p_mauchly)) {
+        sprintf(
+          "Sphericity not violated (Mauchly p = %.3g); uncorrected results reported.",
+          p_mauchly
+        )
+      } else {
+        "Mauchly p could not be extracted; defaulting to uncorrected."
+      }
+      res$notes <- lapply(res$notes, function(x) c(x, note))
+    } else if (correction == "none" && !is.na(p_mauchly) && p_mauchly < 0.05) {
+      note <- sprintf(
+        "Sphericity violated (Mauchly p = %.3g); uncorrected results requested—interpret with caution.",
         p_mauchly
       )
-    } else {
-      "Mauchly p could not be extracted; defaulting to uncorrected."
+      res$notes <- lapply(res$notes, function(x) c(x, note))
     }
-    res$notes <- lapply(res$notes, function(x) c(x, note))
   }
   sp_df <- NULL
   if (!is.null(sp)) {
