@@ -465,9 +465,9 @@ engine_anova_repeated_base <- function(data, meta) {
   fit <- stats::aov(outcome ~ group + Error(id / group), data = df)
   summ <- summary(fit)
   nm <- names(summ)
-  idx <- tail(grep("Within", nm), 1)
+  idx <- utils::tail(grep("Within", nm), 1)
   if (!length(idx)) {
-    idx <- tail(grep(":", nm), 1)
+    idx <- utils::tail(grep(":", nm), 1)
   }
   if (!length(idx)) {
     err_idx <- grep("^Error:", nm)
