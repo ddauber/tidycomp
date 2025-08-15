@@ -555,6 +555,15 @@ engine_anova_repeated <- function(data, meta) {
   sp <- meta$diagnostics$sphericity
   p_mauchly <- .extract_sphericity_p(sp)
 
+  # If diagnostics missing, attempt to compute sphericity
+  if ((is.null(sp) || is.na(p_mauchly)) && rlang::is_installed("performance")) {
+    sp <- tryCatch(performance::check_sphericity(fit), error = function(e) NULL)
+    if (!is.null(sp)) {
+      sp <- tryCatch(tibble::as_tibble(sp), error = function(e) sp)
+      p_mauchly <- .extract_sphericity_p(sp)
+    }
+  }
+
   # Epsilons available in afex table
   eps_GG <- if ("GG eps" %in% colnames(tab)) {
     unname(tab["group", "GG eps"])
