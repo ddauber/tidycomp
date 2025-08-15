@@ -129,14 +129,15 @@ effects <- function(
     return(hint)
   }
   cls <- class(model)
+
+  if (any("glm" %in% cls)) {
+    return("r2")
+  }
   if (any(c("afex_aov", "Anova.mlm", "aovlist") %in% cls)) {
     return("ges")
   }
   if (any(c("aov", "lm") %in% cls)) {
     return("omega2")
-  }
-  if (any("glm" %in% cls)) {
-    return("r2")
   }
   if (inherits(model, "htest") && !is.null(model$statistic[["t"]])) {
     return("d")

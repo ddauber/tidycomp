@@ -343,3 +343,248 @@ test_that("effects() computes generalized eta squared for repeated measures", {
   )[1]
   expect_equal(spec$effects$estimate, es[[col]][1])
 })
+
+test_that(".default_effect_type honors spec$effects_hint", {
+  spec <- structure(list(effects_hint = "omega2"), class = "comp_spec")
+  out <- tidycomp:::.default_effect_type(
+    spec_or_fit = spec,
+    fitted = NULL,
+    model = NULL
+  )
+  expect_identical(out, "omega2")
+})
+
+test_that(".default_effect_type honors fitted attr 'engine_hint'", {
+  fitted <- list()
+  attr(fitted, "engine_hint") <- "ges"
+  out <- tidycomp:::.default_effect_type(
+    spec_or_fit = list(),
+    fitted = fitted,
+    model = NULL
+  )
+  expect_identical(out, "ges")
+})
+
+test_that(".default_effect_type returns 'ges' for afex/aovlist classes", {
+  for (cls in list(
+    c("afex_aov"),
+    c("Anova.mlm"),
+    c("aovlist")
+  )) {
+    model <- structure(list(), class = cls)
+    out <- tidycomp:::.default_effect_type(
+      spec_or_fit = list(),
+      fitted = NULL,
+      model = model
+    )
+    expect_identical(out, "ges")
+  }
+})
+
+test_that(".default_effect_type returns 'omega2' for aov/lm", {
+  # lm
+  mdl_lm <- lm(mpg ~ factor(cyl), data = mtcars)
+  out_lm <- tidycomp:::.default_effect_type(
+    spec_or_fit = list(),
+    fitted = NULL,
+    model = mdl_lm
+  )
+  expect_identical(out_lm, "omega2")
+
+  # aov
+  mdl_aov <- aov(mpg ~ factor(cyl), data = mtcars)
+  out_aov <- tidycomp:::.default_effect_type(
+    spec_or_fit = list(),
+    fitted = NULL,
+    model = mdl_aov
+  )
+  expect_identical(out_aov, "omega2")
+})
+
+test_that(".default_effect_type returns 'r2' for glm", {
+  mdl_glm <- glm(am ~ mpg, data = mtcars, family = binomial())
+  out <- tidycomp:::.default_effect_type(
+    spec_or_fit = list(),
+    fitted = NULL,
+    model = mdl_glm
+  )
+  expect_identical(out, "r2")
+})
+
+test_that(".default_effect_type returns 'd' for htest with t statistic", {
+  mdl_t <- structure(list(statistic = c(t = 2.3)), class = "htest")
+  out <- tidycomp:::.default_effect_type(
+    spec_or_fit = list(),
+    fitted = NULL,
+    model = mdl_t
+  )
+  expect_identical(out, "d")
+})
+
+test_that(".default_effect_type returns 'rank_biserial' for Wilcoxon via chain", {
+  set.seed(1)
+  df <- tibble::tibble(
+    y = c(rnorm(10, 0), rnorm(10, 0.8)),
+    g = factor(rep(c("A", "B"), each = 10))
+  )
+
+  spec <- comp_spec(df) |>
+    set_roles(outcome = y, group = g) |>
+    set_design("independent") |>
+    set_outcome_type("numeric") |>
+    set_engine("mann_whitney") |>
+    test()
+
+  model <- attr(spec$fitted, "model")
+  out <- tidycomp:::.default_effect_type(
+    spec_or_fit = list(),
+    fitted = spec$fitted,
+    model = model
+  )
+  expect_identical(out, "rank_biserial")
+})
+
+test_that(".default_effect_type returns current behavior for Friedman via chain", {
+  df <- tibble::tibble(
+    id = rep(1:8, each = 3),
+    g = factor(rep(c("A", "B", "C"), times = 8)),
+    y = c(
+      rnorm(8, 0),
+      rnorm(8, 0.5),
+      rnorm(8, 1.0)
+    )
+  )
+
+  spec <- comp_spec(df) |>
+    set_roles(outcome = y, group = g, id = id) |>
+    set_design("repeated") |>
+    set_outcome_type("numeric") |>
+    set_engine("friedman") |>
+    test() |>
+    effects()
+
+  # model <- attr(spec$fitted, "model") # stats::friedman.test -> htest
+  # out <- tidycomp:::.default_effect_type(
+  #   spec_or_fit = list(),
+  #   fitted = spec$fitted,
+  #   model = model
+  # )
+
+  expect_identical(spec$effects$type, "kendalls_w")
+})
+
+test_that(".default_effect_type falls back to 'eta2' otherwise", {
+  mdl_other <- list() # no classes, no method/statistic
+  out <- tidycomp:::.default_effect_type(
+    spec_or_fit = list(),
+    fitted = NULL,
+    model = mdl_other
+  )
+  expect_identical(out, "eta2")
+})
+
+test_that("effects() errors for rank epsilon squared when effectsize missing", {
+  df <- tibble::tibble(
+    outcome = c(1, 2, 3, 4, 5, 6, 7, 8, 9),
+    group = factor(rep(c("A", "B", "C"), each = 3))
+  )
+
+  spec <- comp_spec(df) |>
+    set_roles(outcome = outcome, group = group) |>
+    set_design("independent") |>
+    set_outcome_type("numeric") |>
+    set_engine("kruskal_wallis") |>
+    test()
+
+  testthat::with_mocked_bindings(
+    is_installed = function(...) FALSE,
+    .package = "rlang",
+    {
+      expect_error(
+        effects(spec, type = "epsilon2"),
+        "Package 'effectsize' is required for epsilon squared.",
+        fixed = TRUE
+      )
+    }
+  )
+})
+
+# effects require effectsize for d/g
+
+test_that("effects() errors without effectsize for Cohen's d/g", {
+  df <- tibble::tibble(
+    outcome = c(1, 2, 3, 4, 10, 20, 30, 40),
+    group = factor(rep(c("A", "B"), each = 4))
+  )
+
+  spec <- comp_spec(df) |>
+    set_roles(outcome = outcome, group = group) |>
+    set_design("independent") |>
+    set_outcome_type("numeric") |>
+    set_engine("welch_t") |>
+    test()
+
+  testthat::with_mocked_bindings(
+    is_installed = function(...) FALSE,
+    .package = "rlang",
+    {
+      expect_error(
+        effects(spec, type = "d"),
+        "Package 'effectsize' is required for Cohen's d / Hedges' g.",
+        fixed = TRUE
+      )
+    }
+  )
+})
+
+test_that("omega squared for Welch ANOVA errors without original data", {
+  skip_if_not_installed("effectsize", minimum_version = "0.8.7")
+
+  df <- tibble::tibble(
+    outcome = c(1, 2, 3, 4, 5, 6, 7, 8, 9),
+    group = factor(rep(c("A", "B", "C"), each = 3))
+  )
+
+  spec <- comp_spec(df) |>
+    set_roles(outcome = outcome, group = group) |>
+    set_design("independent") |>
+    set_outcome_type("numeric") |>
+    set_engine("anova_oneway_welch") |>
+    test()
+
+  attr(spec$fitted, "model")$method <- "Welch's ANOVA"
+  fit <- spec$fitted
+
+  expect_error(
+    effects(fit, type = "omega2"),
+    "Omega squared for Welch's ANOVA requires the original data",
+    fixed = TRUE
+  )
+})
+
+test_that("effects() computes epsilon squared for one-way ANOVA", {
+  skip_if_not_installed("effectsize")
+
+  df <- tibble::tibble(
+    outcome = c(1, 2, 3, 4, 5, 6, 7, 8, 9),
+    group = factor(rep(c("A", "B", "C"), each = 3))
+  )
+
+  spec <- comp_spec(df) |>
+    set_roles(outcome = outcome, group = group) |>
+    set_design("independent") |>
+    set_outcome_type("numeric") |>
+    set_engine("anova_oneway_equal") |>
+    test()
+
+  expected <- effectsize::epsilon_squared(aov(outcome ~ group, data = df))
+  col <- intersect(c("Epsilon2", "epsilon.sq", "epsilon_sq"), names(expected))[
+    1
+  ]
+
+  spec <- effects(spec, type = "epsilon2")
+
+  expect_s3_class(spec$effects, "tbl_df")
+  expect_equal(spec$effects$type, "epsilon2")
+  expect_equal(spec$effects$estimate, expected[[col]][1], tolerance = 1e-8)
+})
