@@ -214,12 +214,13 @@ effects <- function(
       )
     }
 
+    # compute using the appropriate function
     if (type == "omega2") {
       es <- effectsize::omega_squared(model, ci = ci)
-      col <- "Omega2"
+      candidates <- c("Omega2", "omega.sq", "omega_sq")
     } else if (type == "epsilon2") {
       es <- effectsize::epsilon_squared(model, ci = ci)
-      col <- "Epsilon2"
+      candidates <- c("Epsilon2", "epsilon.sq", "epsilon_sq")
     } else {
       es <- effectsize::eta_squared(
         model,
@@ -227,30 +228,91 @@ effects <- function(
         partial = identical(type, "pes"),
         ci = ci
       )
-      col <- "Eta2"
+      candidates <- switch(
+        type,
+        "ges" = c(
+          "GES",
+          "Eta2_G",
+          "Eta2_generalized",
+          "eta.sq.gen",
+          "eta_sq_generalized",
+          "Eta2"
+        ),
+        "pes" = c("Eta2_partial", "eta.sq.part", "eta_sq_partial", "Eta2"),
+        "eta2" = c("Eta2", "eta.sq", "eta_sq")
+      )
     }
 
-    # prefer the named within-factor 'group' if present; else first non-residual row
-    pick <- if ("Parameter" %in% names(es) && any(es$Parameter == "group")) {
-      which(es$Parameter == "group")[1]
+    # pick the first estimate column that exists
+    col <- intersect(candidates, names(es))
+    if (length(col) == 0L) {
+      stop(
+        sprintf(
+          "Could not find an estimate column for type '%s'. Available columns: %s",
+          type,
+          paste(names(es), collapse = ", ")
+        ),
+        call. = FALSE
+      )
+    }
+    col <- col[[1]]
+
+    # --- pick the factor/parameter column robustly (Welch may have none) ---
+    par_col <- NULL
+    for (cand in c("Parameter", "Effect", "Term", "term", "Factor")) {
+      if (cand %in% names(es)) {
+        par_col <- cand
+        break
+      }
+    }
+
+    # if there's no factor column (e.g., omega_squared(oneway.test(...))),
+    # fall back to the single available row and label the effect as "group"
+    if (is.null(par_col)) {
+      pick <- 1L
+      effect_label <- "group"
     } else {
-      which(!grepl("Residual", es$Parameter))[1]
+      # prefer explicit 'group' if present; else first non-residual row
+      if (any(es[[par_col]] == "group")) {
+        pick <- which(es[[par_col]] == "group")[1]
+      } else {
+        pick <- which(!grepl("Residual", es[[par_col]], ignore.case = TRUE))[1]
+      }
+      effect_label <- es[[par_col]][pick]
+    }
+
+    # ensure we pass a real value, not NULL, so the column isn't dropped
+    estimate_val <- es[[col]][pick]
+    if (length(estimate_val) == 0L) {
+      estimate_val <- NA_real_
+    }
+
+    # --- CI columns robustly ---
+    ci_low_col <- intersect(
+      c("CI_low", "CI_low_", "CI_low..", "CI_low..CI."),
+      names(es)
+    )
+    ci_high_col <- intersect(
+      c("CI_high", "CI_high_", "CI_high..", "CI_high..CI."),
+      names(es)
+    )
+    conf_low <- if (length(ci_low_col)) {
+      es[[ci_low_col[[1]]]][pick]
+    } else {
+      NA_real_
+    }
+    conf_high <- if (length(ci_high_col)) {
+      es[[ci_high_col[[1]]]][pick]
+    } else {
+      NA_real_
     }
 
     return(tibble::tibble(
-      effect = es$Parameter[pick],
+      effect = effect_label,
       type = type,
-      estimate = es[[col]][pick],
-      conf.low = if (!is.null(ci) && "CI_low" %in% names(es)) {
-        es$CI_low[pick]
-      } else {
-        NA_real_
-      },
-      conf.high = if (!is.null(ci) && "CI_high" %in% names(es)) {
-        es$CI_high[pick]
-      } else {
-        NA_real_
-      }
+      estimate = estimate_val,
+      conf.low = conf_low,
+      conf.high = conf_high
     ))
   }
 
