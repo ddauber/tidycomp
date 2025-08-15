@@ -158,7 +158,6 @@ test_that("anova_repeated: uses uncorrected when sphericity OK; corrected when v
     set_design("repeated") |>
     set_outcome_type("numeric") |>
     set_engine("anova_repeated") |>
-    set_engine_options(correction = "auto", return_df = "auto") |>
     diagnose() |>
     test()
 
@@ -186,14 +185,24 @@ test_that("anova_repeated: uses uncorrected when sphericity OK; corrected when v
     set_design("repeated") |>
     set_outcome_type("numeric") |>
     set_engine("anova_repeated") |>
-    set_engine_options(correction = "GG", return_df = "corrected") |>
     diagnose() |>
     test()
 
   p_bad <- as.numeric(spec_bad$diagnostics$sphericity$p)[1]
   expect_true(is.finite(p_bad))
   expect_lt(p_bad, 0.05)
-  expect_true(spec_bad$fitted$metric[1] %in% c("GG", "HF"))
+  expect_identical(spec_bad$fitted$metric[1], "GG")
+
+  # Respect user preference for HF when provided
+  spec_bad_hf <- comp_spec(df_bad) |>
+    set_roles(outcome = outcome, group = group, id = id) |>
+    set_design("repeated") |>
+    set_outcome_type("numeric") |>
+    set_engine("anova_repeated") |>
+    set_engine_options(correction = c("auto", "HF")) |>
+    diagnose() |>
+    test()
+  expect_identical(spec_bad_hf$fitted$metric[1], "HF")
 })
 
 test_that("anova_repeated works with non-standard group column names", {
