@@ -34,7 +34,7 @@ without affecting other engines or the general API.
 spec <- comp_spec(mtcars) |>
   set_roles(outcome = mpg, group = cyl) |>
   set_engine("anova_repeated") |>
-  set_engine_options(correction = "none", return_df = "uncorrected")
+  set_engine_options(correction = "none")
 
 spec$engine_args
 

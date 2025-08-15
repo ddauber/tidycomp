@@ -523,8 +523,10 @@ engine_anova_repeated <- function(data, meta) {
   # ---- Step 1: obtain sphericity result -------------------------------
   sp <- meta$diagnostics$sphericity
   p_mauchly <- .extract_sphericity_p(sp)
-
-  if ((is.null(sp) || is.na(p_mauchly)) && rlang::is_installed("performance")) {
+  if (
+    (is.null(sp) || length(p_mauchly) != 1 || is.na(p_mauchly)) &&
+      rlang::is_installed("performance")
+  ) {
     base_args <- list(
       id = "id",
       dv = "outcome",
@@ -537,16 +539,24 @@ engine_anova_repeated <- function(data, meta) {
       silent = TRUE
     )
     if (!inherits(fit_uncorr, "try-error")) {
-      sp <- tryCatch(performance::check_sphericity(fit_uncorr), error = function(e) NULL)
+      sp <- tryCatch(
+        performance::check_sphericity(fit_uncorr),
+        error = function(e) NULL
+      )
       p_mauchly <- .extract_sphericity_p(sp)
     }
   }
 
   # ---- Step 2: decide correction -------------------------------------
-  if (!is.null(user_corr)) {
+  if (length(p_mauchly) != 1 || is.na(p_mauchly)) {
+    cli::cli_warn("Sphericity check failed; using uncorrected results.")
+    correction <- "none"
+  } else if (!is.null(user_corr)) {
     correction <- match.arg(user_corr, c("none", "GG", "HF"))
+  } else if (p_mauchly < 0.05) {
+    correction <- "GG"
   } else {
-    correction <- if (!is.na(p_mauchly) && p_mauchly < 0.05) "GG" else "none"
+    correction <- "none"
   }
 
   # ---- Step 3: run afex::aov_ez with chosen correction ----------------
