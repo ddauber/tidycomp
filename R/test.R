@@ -156,7 +156,11 @@ test <- function(spec) {
 
   res <- eng_fun(
     data = data,
-    meta = list(roles = spec$roles, diagnostics = spec$diagnostics)
+    meta = list(
+      roles = spec$roles,
+      diagnostics = spec$diagnostics,
+      engine = list(args = spec$engine_args %||% list())
+    )
   )
   class(res) <- c("comp_result", class(res))
   attr(res, "engine_hint") <- spec$effects_hint

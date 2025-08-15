@@ -506,12 +506,13 @@ engine_anova_repeated_base <- function(data, meta) {
 engine_anova_repeated <- function(data, meta) {
   args <- meta$engine$args %||% list()
 
-  correction <- args$correction %||% c("auto", "GG") # default behaviour
+  corr_arg <- args$correction %||% c("auto", "GG")
   return_df <- args$return_df %||% "auto"
   afex_args <- args$afex_args %||% list()
 
-  correction <- match.arg(correction[1], c("auto", "none", "GG", "HF", "LB"))
-  prefer_corr <- if (length(correction) > 1) correction[2] else "GG"
+  prefer_corr <- if (length(corr_arg) > 1) corr_arg[2] else "GG"
+  correction <- match.arg(corr_arg[1], c("auto", "none", "GG", "HF", "LB"))
+  prefer_corr <- match.arg(prefer_corr, c("GG", "HF", "LB"))
   return_df <- match.arg(
     return_df,
     c("auto", "uncorrected", "GG", "HF", "LB", "all")
@@ -554,18 +555,23 @@ engine_anova_repeated <- function(data, meta) {
   df2_raw <- unname(tab["group", "den Df"])
   p_raw <- unname(tab["group", "Pr(>F)"])
 
-  # Sphericity check (via performance)
-  sp <- performance::check_sphericity(fit)
-  # Extract Mauchly p for 'group'
-  p_mauchly <- tryCatch(
-    {
-      # works with data.frame output from performance
-      as.numeric(sp$p[
-        sp$Effect %in% c("group", "group (within)", "within: group")
-      ][1])
-    },
-    error = function(e) NA_real_
-  )
+  # Sphericity check: prefer diagnostics supplied in `meta`; otherwise compute
+  sp <- meta$diagnostics$sphericity
+  p_mauchly <- meta$diagnostics$sphericity_p %||% NA_real_
+  if (is.null(sp)) {
+    sp <- tryCatch(performance::check_sphericity(fit), error = function(e) NULL)
+  }
+  if (is.na(p_mauchly) || !is.finite(p_mauchly)) {
+    p_mauchly <- tryCatch(
+      {
+        as.numeric(tibble::as_tibble(sp)$p[
+          tibble::as_tibble(sp)$Effect %in%
+            c("group", "group (within)", "within: group")
+        ][1])
+      },
+      error = function(e) NA_real_
+    )
+  }
 
   # Epsilons available in afex table
   eps_GG <- if ("GG eps" %in% colnames(tab)) {
@@ -695,8 +701,13 @@ engine_anova_repeated <- function(data, meta) {
     }
     res$notes <- lapply(res$notes, function(x) c(x, note))
   }
+  sp_df <- NULL
+  if (!is.null(sp)) {
+    sp_df <- tryCatch(tibble::as_tibble(sp), error = function(e) sp)
+  }
 
   attr(res, "model") <- fit
+  attr(res, "diagnostics") <- list(sphericity = sp_df, sphericity_p = p_mauchly)
   res
 }
 
