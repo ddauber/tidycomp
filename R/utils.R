@@ -237,18 +237,39 @@
 
 #' Extract Mauchly p-value from sphericity results
 #'
-#' Given a sphericity table, return the first Mauchly p-value for standard
+#' Given sphericity results, return the first Mauchly p-value for standard
 #' within-subject effect names. If unavailable, returns `NA`.
 #'
-#' @param sp A data frame or tibble with columns `Effect` and `p`.
+#' @param sp A tibble/data frame with columns `Effect` and `p`, or a numeric
+#'   vector as returned by [performance::check_sphericity()].
 #' @return Numeric scalar p-value or `NA_real_`.
 #' @keywords internal
 #' @noRd
 .extract_sphericity_p <- function(sp) {
-  tryCatch({
-    sp <- tibble::as_tibble(sp)
-    as.numeric(sp$p[sp$Effect %in% c("group", "group (within)", "within: group")][1])
-  }, error = function(e) NA_real_)
+  if (is.null(sp)) {
+    return(NA_real_)
+  }
+
+  if (is.numeric(sp) && !is.data.frame(sp)) {
+    eff <- names(sp)
+    if (is.null(eff)) {
+      eff <- rep(NA_character_, length(sp))
+    }
+    sp <- tibble::tibble(Effect = eff, p = as.numeric(sp))
+  } else {
+    sp <- tryCatch(tibble::as_tibble(sp), error = function(e) NULL)
+  }
+
+  if (is.null(sp) || !all(c("Effect", "p") %in% names(sp))) {
+    return(NA_real_)
+  }
+
+  p <- sp$p[sp$Effect %in% c("group", "group (within)", "within: group")]
+  if (length(p) == 0) {
+    return(NA_real_)
+  }
+
+  as.numeric(p[1])
 }
 
 #' Check if the `effectsize` package is installed
