@@ -60,7 +60,7 @@
 #' spec <- comp_spec(mtcars) |>
 #'   set_roles(outcome = mpg, group = cyl) |>
 #'   set_engine("anova_repeated") |>
-#'   set_engine_options(correction = "none", return_df = "uncorrected")
+#'   set_engine_options(correction = "none")
 #'
 #' spec$engine_args
 #'
@@ -498,25 +498,12 @@ engine_anova_repeated_base <- function(data, meta) {
 #'
 #' @param data A data frame containing outcome, group, and id columns.
 #' @param meta  A list with roles/diagnostics metadata.
-#' @param correction  "auto", "none", "GG", "HF", or "LB".
-#' @param return_df   What to return in the table: "auto", "uncorrected", "GG", "HF", "LB", or "all".
-#' @param afex_args   Named list of extra args passed to afex::aov_ez().
 #' @keywords internal
 #' @noRd
 engine_anova_repeated <- function(data, meta) {
   args <- meta$engine$args %||% list()
-
-  corr_arg <- args$correction %||% c("auto", "GG")
-  return_df <- args$return_df %||% "auto"
+  user_corr <- args$correction
   afex_args <- args$afex_args %||% list()
-
-  prefer_corr <- if (length(corr_arg) > 1) corr_arg[2] else "GG"
-  correction <- match.arg(corr_arg[1], c("auto", "none", "GG", "HF", "LB"))
-  prefer_corr <- match.arg(prefer_corr, c("GG", "HF", "LB"))
-  return_df <- match.arg(
-    return_df,
-    c("auto", "uncorrected", "GG", "HF", "LB", "all")
-  )
 
   df <- .standardize_repeated_numeric(
     data,
@@ -533,181 +520,111 @@ engine_anova_repeated <- function(data, meta) {
     return(engine_anova_repeated_base(data, meta))
   }
 
-  # ---- fit with afex ----------------------------------------------------
-  # Always compute with ES turned off (we compute ES elsewhere if needed)
+  # ---- Step 1: obtain sphericity result -------------------------------
+  sp <- meta$diagnostics$sphericity
+  p_mauchly <- .extract_sphericity_p(sp)
+
+  if ((is.null(sp) || is.na(p_mauchly)) && rlang::is_installed("performance")) {
+    base_args <- list(
+      id = "id",
+      dv = "outcome",
+      within = "group",
+      data = df,
+      anova_table = list(correction = "none", es = "none")
+    )
+    fit_uncorr <- try(
+      do.call(afex::aov_ez, utils::modifyList(base_args, afex_args)),
+      silent = TRUE
+    )
+    if (!inherits(fit_uncorr, "try-error")) {
+      sp <- tryCatch(performance::check_sphericity(fit_uncorr), error = function(e) NULL)
+      p_mauchly <- .extract_sphericity_p(sp)
+    }
+  }
+
+  # ---- Step 2: decide correction -------------------------------------
+  if (!is.null(user_corr)) {
+    correction <- match.arg(user_corr, c("none", "GG", "HF"))
+  } else {
+    correction <- if (!is.na(p_mauchly) && p_mauchly < 0.05) "GG" else "none"
+  }
+
+  # ---- Step 3: run afex::aov_ez with chosen correction ----------------
   base_args <- list(
     id = "id",
     dv = "outcome",
     within = "group",
     data = df,
-    anova_table = list(correction = "none", es = "none") # start uncorrected
+    anova_table = list(correction = correction, es = "none")
   )
   fit <- do.call(afex::aov_ez, utils::modifyList(base_args, afex_args))
   tab <- as.data.frame(fit$anova_table)
 
-  # Pull uncorrected stats once
   F_val <- unname(tab["group", "F"])
   df1_raw <- unname(tab["group", "num Df"])
   df2_raw <- unname(tab["group", "den Df"])
-  p_raw <- unname(tab["group", "Pr(>F)"])
 
-  # Sphericity check: rely on diagnostics supplied in `meta`
-  sp <- meta$diagnostics$sphericity
-  p_mauchly <- .extract_sphericity_p(sp)
-
-  # If diagnostics missing, attempt to compute sphericity
-  if ((is.null(sp) || is.na(p_mauchly)) && rlang::is_installed("performance")) {
-    sp <- tryCatch(performance::check_sphericity(fit), error = function(e) NULL)
-    if (!is.null(sp)) {
-      sp <- tryCatch(tibble::as_tibble(sp), error = function(e) sp)
-      p_mauchly <- .extract_sphericity_p(sp)
-    }
-  }
-
-  # Epsilons available in afex table
-  eps_GG <- if ("GG eps" %in% colnames(tab)) {
-    unname(tab["group", "GG eps"])
-  } else {
-    NA_real_
-  }
-  eps_HF <- if ("HF eps" %in% colnames(tab)) {
-    unname(tab["group", "HF eps"])
-  } else {
-    NA_real_
-  }
-
-  # Helper to build one row given a label + epsilon
-  make_row <- function(label, eps, p_col) {
-    if (is.na(eps)) {
-      return(NULL)
-    }
+  if (correction == "none") {
+    p_val <- unname(tab["group", "Pr(>F)"])
+    df1 <- df1_raw
+    df2 <- df2_raw
+    metric <- "uncorrected"
+    notes <- meta$diagnostics$notes %||% character()
+  } else if (correction == "GG") {
+    eps <- unname(tab["group", "GG eps"])
     df1 <- df1_raw * eps
     df2 <- df2_raw * eps
-    p <- if (!is.null(p_col) && p_col %in% colnames(tab)) {
-      unname(tab["group", p_col])
+    p_val <- if ("Pr(>F[GG])" %in% colnames(tab)) {
+      unname(tab["group", "Pr(>F[GG])"])
     } else {
       stats::pf(F_val, df1, df2, lower.tail = FALSE)
     }
-    tibble::tibble(
-      test = "anova_repeated",
-      method = "Repeated measures ANOVA",
-      engine = "anova_repeated",
-      n_obs = nrow(df),
-      n_subjects = length(unique(df$id)),
-      statistic = F_val,
-      df1 = df1,
-      df2 = df2,
-      p.value = p,
-      estimate = NA_real_,
-      conf.low = NA_real_,
-      conf.high = NA_real_,
-      metric = label,
-      notes = list(c(
-        meta$diagnostics$notes %||% character(),
-        sprintf("Reported with %s correction.", label)
-      ))
+    metric <- "GG"
+    notes <- c(
+      meta$diagnostics$notes %||% character(),
+      "Reported with GG correction."
     )
+  } else if (correction == "HF") {
+    eps <- unname(tab["group", "HF eps"])
+    df1 <- df1_raw * eps
+    df2 <- df2_raw * eps
+    p_val <- if ("Pr(>F[HF])" %in% colnames(tab)) {
+      unname(tab["group", "Pr(>F[HF])"])
+    } else {
+      stats::pf(F_val, df1, df2, lower.tail = FALSE)
+    }
+    metric <- "HF"
+    notes <- c(
+      meta$diagnostics$notes %||% character(),
+      "Reported with HF correction."
+    )
+  } else {
+    cli::cli_warn("Lower-bound correction not implemented in this engine yet.")
+    p_val <- unname(tab["group", "Pr(>F)"])
+    df1 <- df1_raw
+    df2 <- df2_raw
+    metric <- "uncorrected"
+    notes <- meta$diagnostics$notes %||% character()
   }
 
-  # Always compute candidates
-  row_uncorr <- tibble::tibble(
+  # ---- Step 4: populate fitted ---------------------------------------
+  res <- tibble::tibble(
     test = "anova_repeated",
     method = "Repeated measures ANOVA",
     engine = "anova_repeated",
     n_obs = nrow(df),
     n_subjects = length(unique(df$id)),
     statistic = F_val,
-    df1 = df1_raw,
-    df2 = df2_raw,
-    p.value = p_raw,
+    df1 = df1,
+    df2 = df2,
+    p.value = p_val,
     estimate = NA_real_,
     conf.low = NA_real_,
     conf.high = NA_real_,
-    metric = "uncorrected",
-    notes = list(c(meta$diagnostics$notes %||% character()))
-  )
-  row_GG <- make_row("GG", eps_GG, "Pr(>F[GG])")
-  row_HF <- make_row("HF", eps_HF, "Pr(>F[HF])")
-
-  out_all <- dplyr::bind_rows(
-    row_uncorr,
-    row_GG %||% NULL,
-    row_HF %||% NULL
+    metric = metric,
+    notes = list(notes)
   )
 
-  # Decide what to return
-  choose_auto <- function() {
-    if (!is.na(p_mauchly) && p_mauchly < 0.05) {
-      if (prefer_corr == "GG" && !is.null(row_GG)) {
-        return(out_all[out_all$metric == "GG", ])
-      }
-      if (prefer_corr == "HF" && !is.null(row_HF)) {
-        return(out_all[out_all$metric == "HF", ])
-      }
-      return(out_all[out_all$metric %in% c("GG", "HF"), ][1, , drop = FALSE])
-    }
-    out_all[out_all$metric == "uncorrected", ]
-  }
-
-  selected <- switch(
-    correction,
-    auto = choose_auto(),
-    none = out_all[out_all$metric == "uncorrected", ],
-    GG = out_all[out_all$metric == "GG", ],
-    HF = out_all[out_all$metric == "HF", ],
-    LB = {
-      cli::cli_warn(
-        "Lower-bound correction not implemented in this engine yet."
-      )
-      out_all[out_all$metric == "uncorrected", ]
-    }
-  )
-
-  res <- switch(
-    return_df,
-    all = out_all,
-    uncorrected = out_all[out_all$metric == "uncorrected", ],
-    GG = out_all[out_all$metric == "GG", ],
-    HF = out_all[out_all$metric == "HF", ],
-    LB = {
-      cli::cli_warn(
-        "Lower-bound correction not implemented in this engine yet."
-      )
-      out_all[out_all$metric == "uncorrected", ]
-    },
-    auto = selected
-  )
-
-  # Add contextual note
-  if (return_df == "auto") {
-    if (correction == "auto") {
-      note <- if (!is.na(p_mauchly) && p_mauchly < 0.05) {
-        sprintf(
-          "Sphericity violated (Mauchly p = %.3g); %s correction reported.",
-          p_mauchly,
-          if (nrow(res) && res$metric[1] != "uncorrected") {
-            res$metric[1]
-          } else {
-            prefer_corr
-          }
-        )
-      } else if (!is.na(p_mauchly)) {
-        sprintf(
-          "Sphericity not violated (Mauchly p = %.3g); uncorrected results reported.",
-          p_mauchly
-        )
-      } else {
-        "Mauchly p could not be extracted; defaulting to uncorrected."
-      }
-      res$notes <- lapply(res$notes, function(x) c(x, note))
-    } else if (correction == "none" && !is.na(p_mauchly) && p_mauchly < 0.05) {
-      note <- sprintf(
-        "Sphericity violated (Mauchly p = %.3g); uncorrected results requested—interpret with caution.",
-        p_mauchly
-      )
-      res$notes <- lapply(res$notes, function(x) c(x, note))
-    }
-  }
   sp_df <- NULL
   if (!is.null(sp)) {
     sp_df <- tryCatch(tibble::as_tibble(sp), error = function(e) sp)

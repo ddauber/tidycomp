@@ -193,6 +193,7 @@ test_that("anova_repeated: uses uncorrected when sphericity OK; corrected when v
   expect_true(is.finite(p_bad))
   expect_lt(p_bad, 0.05)
   expect_identical(spec_bad$fitted$metric[1], "GG")
+  expect_true(any(grepl("GG correction", spec_bad$fitted$notes[[1]])))
 
   # Respect user preference for HF when provided
   spec_bad_hf <- comp_spec(df_bad) |>
@@ -200,10 +201,11 @@ test_that("anova_repeated: uses uncorrected when sphericity OK; corrected when v
     set_design("repeated") |>
     set_outcome_type("numeric") |>
     set_engine("anova_repeated") |>
-    set_engine_options(correction = c("auto", "HF")) |>
+    set_engine_options(correction = "HF") |>
     diagnose() |>
     test()
   expect_identical(spec_bad_hf$fitted$metric[1], "HF")
+  expect_true(any(grepl("HF correction", spec_bad_hf$fitted$notes[[1]])))
 
   # Respect user request for uncorrected despite violation
   spec_bad_none <- comp_spec(df_bad) |>
@@ -215,7 +217,6 @@ test_that("anova_repeated: uses uncorrected when sphericity OK; corrected when v
     diagnose() |>
     test()
   expect_identical(spec_bad_none$fitted$metric[1], "uncorrected")
-  expect_true(any(grepl("Sphericity violated", spec_bad_none$fitted$notes[[1]])))
 })
 
 test_that("anova_repeated computes sphericity internally when diagnostics missing", {
