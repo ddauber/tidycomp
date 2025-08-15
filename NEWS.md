@@ -1,8 +1,14 @@
-# tidycomp (development version)
+# tidycomp 0.3.0
 
-* `engine_anova_repeated` now determines sphericity internally and selects an
-  appropriate correction (none, GG, or HF) before fitting a single
-  `afex::aov_ez()` model.
+* Package supports unpaird 2-group comparisons using: student's t-test, Welch's t-test, and Mann-Whitney U test.
+* Package supports multiple unpaired group comparisons using: ANOVA, Welch's ANOVA, and Kruskal-Wallis test.
+* Package supports repeated measures Anova via `afex::aov_ez()` and Friedman's test.
+* Added engine-specific effect size calculations.
+* Added multiple outlier detection methods, e.g. `step_trim_outliers()` now supports `method = "iqr"`, `"mad"`, or `"sd"` (all default to `k = 3`), following guidance from the r4np book.
+* Documentation for all functions has been added/updated/tidied.
+* `comp_spec()` fixed issues with missing specifications.
+* `report_comp_result()` returns correct results.
+* `README.md` has been updated to include a link to the Contributor Code of Conduct.
 
 # tidycomp 0.2.0
 
