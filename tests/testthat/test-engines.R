@@ -218,6 +218,37 @@ test_that("anova_repeated: uses uncorrected when sphericity OK; corrected when v
   expect_true(any(grepl("Sphericity violated", spec_bad_none$fitted$notes[[1]])))
 })
 
+test_that("anova_repeated computes sphericity internally when diagnostics missing", {
+  skip_if_not_installed("afex")
+  skip_if_not_installed("performance")
+
+  set.seed(123)
+  N <- 60
+  A <- rnorm(N, 0, 1)
+  B <- A + rnorm(N, 0, 0.01)
+  C <- A + rnorm(N, 0, 5.0)
+
+  df_bad <- tibble::tibble(
+    id = rep(seq_len(N), each = 3),
+    group = factor(rep(c("A", "B", "C"), times = N), levels = c("A", "B", "C")),
+    outcome = c(A, B, C)
+  )
+
+  spec_bad <- comp_spec(df_bad) |>
+    set_roles(outcome = outcome, group = group, id = id) |>
+    set_design("repeated") |>
+    set_outcome_type("numeric") |>
+    set_engine("anova_repeated") |>
+    test()
+
+  sp <- attr(spec_bad$fitted, "diagnostics")$sphericity
+  expect_true(is.data.frame(sp))
+  p_bad <- as.numeric(sp$p[1])
+  expect_true(is.finite(p_bad))
+  expect_lt(p_bad, 0.05)
+  expect_identical(spec_bad$fitted$metric[1], "GG")
+})
+
 test_that("anova_repeated works with non-standard group column names", {
   df <- tibble::tibble(
     id = rep(1:4, each = 3),

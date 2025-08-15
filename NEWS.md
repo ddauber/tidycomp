@@ -1,5 +1,9 @@
 # tidycomp (development version)
 
+* `engine_anova_repeated` now computes sphericity internally when diagnostics
+  are absent and automatically applies Greenhouse-Geisser or Huynh-Feldt
+  corrections when violations are detected.
+
 # tidycomp 0.2.0
 
 * Added paired 2-group comparisons: `engine_paired_t` and `engine_wilcoxon_signed_rank`.
