@@ -3,25 +3,25 @@ library(tidycomp)
 
 test_that("engines attach fitted model", {
   df_two <- tibble::tibble(
-    outcome = c(1,2,3,4,10,20,30,40),
-    group = factor(rep(c("A","B"), each = 4))
+    outcome = c(1, 2, 3, 4, 10, 20, 30, 40),
+    group = factor(rep(c("A", "B"), each = 4))
   )
 
   df_three <- tibble::tibble(
-    outcome = c(1,2,3,4,5,6,7,8,9),
-    group = factor(rep(c("A","B","C"), each = 3))
+    outcome = c(1, 2, 3, 4, 5, 6, 7, 8, 9),
+    group = factor(rep(c("A", "B", "C"), each = 3))
   )
 
   df_paired <- tibble::tibble(
     id = rep(1:5, each = 2),
-    group = factor(rep(c("A","B"), times = 5)),
-    outcome = c(1,4,2,2,3,10,11,12,12,16)
+    group = factor(rep(c("A", "B"), times = 5)),
+    outcome = c(1, 4, 2, 2, 3, 10, 11, 12, 12, 16)
   )
 
   df_repeated <- tibble::tibble(
     id = rep(1:4, each = 3),
-    group = factor(rep(c("A","B","C"), times = 4)),
-    outcome = c(1:12)
+    group = factor(rep(c("A", "B", "C"), times = 4)),
+    outcome = c(1, 2, 3, 4, 5, 7, 7, 8, 9, 10, 11, 12)
   )
 
   specs <- list(

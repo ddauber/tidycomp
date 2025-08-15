@@ -19,6 +19,7 @@ Imports:
     afex,
     effectsize,
     ggplot2,
+    performance,
     purrr,
     rlang,
     tibble,

@@ -8,7 +8,7 @@ effects(
   x,
   type = c("auto", "ges", "pes", "eta2", "omega2", "epsilon2", "d", "g", "rank_biserial",
     "kendalls_w", "r2"),
-  ci = 0.95
+  conf_level = 0.95
 )
 }
 \arguments{
@@ -20,7 +20,7 @@ an engine-/class-based default. Supported values: \code{"ges"}, \code{"pes"},
 \code{"eta2"}, \code{"omega2"}, \code{"epsilon2"}, \code{"d"}, \code{"g"},
 \code{"rank_biserial"}, \code{"kendalls_w"}, \code{"r2"}.}
 
-\item{ci}{Confidence level (e.g., \code{0.90}); \code{NULL} for none. Defaults to
+\item{conf_level}{Confidence level (e.g., \code{0.90}); \code{NULL} for none. Defaults to
 \code{0.95}.}
 }
 \value{

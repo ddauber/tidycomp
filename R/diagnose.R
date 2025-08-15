@@ -123,17 +123,35 @@ diagnose <- function(spec) {
   if (identical(spec$design, "repeated") && !is.null(roles$id)) {
     id <- roles$id
     .validate_cols(df, id)
-    if (rlang::is_installed("afex")) {
+    if (rlang::is_installed(c("afex", "performance"))) {
       fit <- tryCatch(
         afex::aov_ez(id = id, dv = outcome, within = group, data = df),
         error = function(e) NULL
       )
       if (!is.null(fit)) {
-        sp <- tryCatch(afex::check_sphericity(fit), error = function(e) NULL)
+        sp <- tryCatch(performance::check_sphericity(fit), error = function(e) {
+          NULL
+        })
         if (!is.null(sp)) {
-          sphericity <- tibble::as_tibble(sp$tests, rownames = "Effect")
-          p_mauchly <- sp$tests["group", "p.value"]
-          if (is.finite(p_mauchly) && p_mauchly < 0.05) {
+          if (is.data.frame(sp)) {
+            sphericity <- tibble::as_tibble(sp)
+          } else {
+            eff <- names(sp)
+            if (is.null(eff)) {
+              eff <- NA_character_
+            }
+            sphericity <- tibble::tibble(Effect = eff, p = as.numeric(sp))
+          }
+          p_mauchly <- tryCatch(
+            {
+              as.numeric(sphericity$p[
+                sphericity$Effect %in%
+                  c("group", "group (within)", "within: group")
+              ][1])
+            },
+            error = function(e) NA_real_
+          )
+          if (!is.na(p_mauchly) && is.finite(p_mauchly) && p_mauchly < 0.05) {
             notes <- c(notes, "Sphericity violation flagged (Mauchly p < .05).")
           }
         }

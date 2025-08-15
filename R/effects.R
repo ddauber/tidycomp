@@ -9,7 +9,7 @@
 #'   Supported values include: \code{"ges"}, \code{"pes"}, \code{"eta2"},
 #'   \code{"omega2"}, \code{"epsilon2"}, \code{"d"}, \code{"g"},
 #'   \code{"rank_biserial"}, \code{"kendalls_w"}, \code{"r2"}.
-#' @param ci Confidence interval level (e.g., 0.90). Use \code{NULL}
+#' @param conf_level Confidence interval level (e.g., 0.90). Use \code{NULL}
 #'   to skip confidence intervals. Defaults to 0.95.
 #' @param compute Logical; if \code{TRUE}, \code{\link{test}()} will compute
 #'   effect sizes automatically (by calling \code{effects()}) after the test.
@@ -18,10 +18,10 @@
 #'   \code{$effects_args}.
 #' @seealso \code{\link{effects}}, \code{\link{set_engine}}, \code{\link{set_engine_options}}, \code{\link{test}}
 #' @export
-set_effects <- function(x, type = "auto", ci = 0.95, compute = FALSE) {
+set_effects <- function(x, type = "auto", conf_level = 0.95, compute = FALSE) {
   x$effects_args <- utils::modifyList(
     x$effects_args %||% list(),
-    list(type = type, ci = ci, compute = compute)
+    list(type = type, conf_level = conf_level, compute = compute)
   )
   x
 }
@@ -44,7 +44,7 @@ set_effects <- function(x, type = "auto", ci = 0.95, compute = FALSE) {
 #'   an engine-/class-based default. Supported values: \code{"ges"}, \code{"pes"},
 #'   \code{"eta2"}, \code{"omega2"}, \code{"epsilon2"}, \code{"d"}, \code{"g"},
 #'   \code{"rank_biserial"}, \code{"kendalls_w"}, \code{"r2"}.
-#' @param ci Confidence level (e.g., \code{0.90}); \code{NULL} for none. Defaults to
+#' @param conf_level Confidence level (e.g., \code{0.90}); \code{NULL} for none. Defaults to
 #'   \code{0.95}.
 #' @return If \code{x} is a spec, the updated spec with \code{$effects};
 #'   otherwise a tibble of effect sizes.
@@ -64,7 +64,7 @@ effects <- function(
     "kendalls_w",
     "r2"
   ),
-  ci = 0.95
+  conf_level = 0.95
 ) {
   type <- match.arg(type)
   is_spec <- inherits(x, "comp_spec")
@@ -83,12 +83,12 @@ effects <- function(
 
   user_args <- if (is_spec) (x$effects_args %||% list()) else list()
   type_arg <- user_args$type %||% NULL
-  ci_arg <- user_args$ci
+  ci_arg <- user_args$conf_level
 
   final_type <- if (!identical(type, "auto")) type else (type_arg %||% "auto")
-  final_ci <- if (!missing(ci)) {
-    ci
-  } else if ("ci" %in% names(user_args)) {
+  final_ci <- if (!missing(conf_level)) {
+    conf_level
+  } else if ("conf_level" %in% names(user_args)) {
     ci_arg
   } else {
     0.95
@@ -101,14 +101,14 @@ effects <- function(
   out <- .compute_effects(
     model = mod,
     type = final_type,
-    ci = final_ci,
+    conf_level = final_ci,
     parent_spec = if (is_spec) x else NULL
   )
 
   if (is_spec) {
     x$effects_args <- utils::modifyList(
       x$effects_args %||% list(),
-      list(type = final_type, ci = final_ci)
+      list(type = final_type, conf_level = final_ci)
     )
     x$effects <- out
     return(x)
@@ -158,7 +158,7 @@ effects <- function(
 .get_spec_roles <- function(spec) spec$roles
 
 # core router: compute effect sizes using effectsize/performance ONLY from proper inputs
-.compute_effects <- function(model, type, ci, parent_spec = NULL) {
+.compute_effects <- function(model, type, conf_level, parent_spec = NULL) {
   # --- Kruskal-Wallis: rank-based epsilon squared from raw data ---
   if (
     type == "epsilon2" &&
@@ -178,15 +178,19 @@ effects <- function(
     roles <- .get_spec_roles(parent_spec)
     fml <- stats::as.formula(paste(roles$outcome, "~", roles$group))
 
-    es <- effectsize::rank_epsilon_squared(fml, data = dat, ci = ci)
+    es <- effectsize::rank_epsilon_squared(
+      fml,
+      data = dat,
+      conf_level = conf_level
+    )
 
     estimate <- es[[1]]
-    ci_low <- if (!is.null(ci) && "CI_low" %in% names(es)) {
+    ci_low <- if (!is.null(conf_level) && "CI_low" %in% names(es)) {
       es$CI_low
     } else {
       NA_real_
     }
-    ci_high <- if (!is.null(ci) && "CI_high" %in% names(es)) {
+    ci_high <- if (!is.null(conf_level) && "CI_high" %in% names(es)) {
       es$CI_high
     } else {
       NA_real_
@@ -216,17 +220,37 @@ effects <- function(
 
     # compute using the appropriate function
     if (type == "omega2") {
-      es <- effectsize::omega_squared(model, ci = ci)
+      if (
+        inherits(model, "htest") &&
+          grepl("Welch", model$method, ignore.case = TRUE)
+      ) {
+        if (is.null(parent_spec)) {
+          stop(
+            "Omega squared for Welch's ANOVA requires the original data; call effects() on a spec.",
+            call. = FALSE
+          )
+        }
+        dat <- .get_spec_data(parent_spec)
+        roles <- .get_spec_roles(parent_spec)
+        fml <- stats::as.formula(paste(roles$outcome, "~", roles$group))
+        es <- effectsize::omega_squared(
+          fml,
+          data = dat,
+          conf_level = conf_level
+        )
+      } else {
+        es <- effectsize::omega_squared(model, conf_level = conf_level)
+      }
       candidates <- c("Omega2", "omega.sq", "omega_sq")
     } else if (type == "epsilon2") {
-      es <- effectsize::epsilon_squared(model, ci = ci)
+      es <- effectsize::epsilon_squared(model, conf_level = conf_level)
       candidates <- c("Epsilon2", "epsilon.sq", "epsilon_sq")
     } else {
       es <- effectsize::eta_squared(
         model,
         generalized = identical(type, "ges"),
         partial = identical(type, "pes"),
-        ci = ci
+        conf_level = conf_level
       )
       candidates <- switch(
         type,
@@ -287,7 +311,7 @@ effects <- function(
       estimate_val <- NA_real_
     }
 
-    # --- CI columns robustly ---
+    # --- conf_level columns robustly ---
     ci_low_col <- intersect(
       c("CI_low", "CI_low_", "CI_low..", "CI_low..CI."),
       names(es)
@@ -341,7 +365,7 @@ effects <- function(
       d <- effectsize::cohens_d(
         df[[g[2]]],
         df[[g[1]]],
-        ci = ci,
+        conf_level = conf_level,
         hedges.correction = identical(type, "g"),
         paired = TRUE
       )
@@ -350,7 +374,7 @@ effects <- function(
       d <- effectsize::cohens_d(
         fml,
         data = dat,
-        ci = ci,
+        conf_level = conf_level,
         hedges.correction = identical(type, "g"),
         paired = FALSE
       )
@@ -361,8 +385,8 @@ effects <- function(
       effect = roles$group,
       type = type,
       estimate = est,
-      conf.low = if (!is.null(ci)) d$CI_low else NA_real_,
-      conf.high = if (!is.null(ci)) d$CI_high else NA_real_
+      conf.low = if (!is.null(conf_level)) d$CI_low else NA_real_,
+      conf.high = if (!is.null(conf_level)) d$CI_high else NA_real_
     ))
   }
   if (
@@ -396,7 +420,7 @@ effects <- function(
       rbs <- effectsize::rank_biserial(
         df[[g[2]]],
         df[[g[1]]],
-        ci = ci,
+        conf_level = conf_level,
         paired = TRUE
       )
     } else {
@@ -404,7 +428,7 @@ effects <- function(
       rbs <- effectsize::rank_biserial(
         fml,
         data = dat,
-        ci = ci,
+        conf_level = conf_level,
         paired = FALSE
       )
     }
@@ -413,8 +437,8 @@ effects <- function(
       effect = roles$group,
       type = "rank_biserial",
       estimate = rbs$r_rank_biserial %||% rbs$Rank_biserial %||% rbs[[1]],
-      conf.low = if (!is.null(ci)) rbs$CI_low else NA_real_,
-      conf.high = if (!is.null(ci)) rbs$CI_high else NA_real_
+      conf.low = if (!is.null(conf_level)) rbs$CI_low else NA_real_,
+      conf.high = if (!is.null(conf_level)) rbs$CI_high else NA_real_
     ))
   }
   if (
@@ -454,14 +478,14 @@ effects <- function(
       roles$id
     ))
 
-    kw <- effectsize::kendalls_w(fml, data = dat, ci = ci)
+    kw <- effectsize::kendalls_w(fml, data = dat, conf_level = conf_level)
 
     return(tibble::tibble(
       effect = roles$group,
       type = "kendalls_w",
       estimate = kw$Kendalls_W %||% kw$W %||% kw[[1]],
-      conf.low = if (!is.null(ci)) kw$CI_low else NA_real_,
-      conf.high = if (!is.null(ci)) kw$CI_high else NA_real_
+      conf.low = if (!is.null(conf_level)) kw$CI_low else NA_real_,
+      conf.high = if (!is.null(conf_level)) kw$CI_high else NA_real_
     ))
   }
   if (

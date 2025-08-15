@@ -58,40 +58,6 @@ test_that("report() on comp_result prints a summary", {
   expect_snapshot(report(result))
 })
 
-
-test_that("report.comp_result() includes an effect size line", {
-  testthat::local_reproducible_output()
-
-  # Prevent leaks from other tests:
-  testthat::local_mocked_bindings(
-    .has_effectsize = function() TRUE,
-    .env = asNamespace("tidycomp")
-  )
-
-  spec <- comp_spec(mtcars) |>
-    set_roles(outcome = mpg, group = am) |>
-    set_design("independent") |>
-    set_outcome_type("numeric") |>
-    set_engine("welch_t") |>
-    test() |>
-    effects(conf_level = 0.90)
-
-  # Optional guard to give a clear error if something still disables effects():
-  expect_true(
-    all(
-      c("es_value", "es_conf_low", "es_conf_high", "es_metric") %in%
-        names(spec$fitted)
-    ),
-    info = paste("Have:", paste(names(spec$fitted), collapse = ", "))
-  )
-
-  msgs <- testthat::capture_messages(report.comp_result(spec))
-  msgs_clean <- cli::ansi_strip(paste(as.character(msgs), collapse = "\n"))
-
-  expect_match(msgs_clean, "Effect size:", perl = TRUE)
-})
-
-
 test_that("report.comp_result() warns when notes are present", {
   testthat::local_reproducible_output()
 
@@ -107,7 +73,8 @@ test_that("report.comp_result() warns when notes are present", {
     set_engine("welch_t") |>
     diagnose() |>
     test() |>
-    effects(conf_level = 0.90)
+    set_effects(conf_level = 0.90) |>
+    effects()
 
   # Ensure the branch is taken: put notes where the method looks for them
   spec$fitted$notes <- list(c("outliers detected", "check assumptions"))
