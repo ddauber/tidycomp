@@ -127,7 +127,7 @@ test_that("anova_repeated falls back to base when afex is missing", {
   res_base <- tidycomp:::engine_anova_repeated_base(df, meta)
 
   res_main <- testthat::with_mocked_bindings(
-    is_installed = function(...) FALSE, # pretend afex/performance are absent
+    is_installed = function(...) FALSE, # pretend afex is absent
     .package = "rlang",
     tidycomp:::engine_anova_repeated(df, meta)
   )
@@ -137,6 +137,7 @@ test_that("anova_repeated falls back to base when afex is missing", {
 
 test_that("anova_repeated: uses uncorrected when sphericity OK; corrected when violated", {
   skip_if_not_installed("afex")
+  skip_if_not_installed("performance")
 
   set.seed(42)
 
@@ -203,6 +204,18 @@ test_that("anova_repeated: uses uncorrected when sphericity OK; corrected when v
     diagnose() |>
     test()
   expect_identical(spec_bad_hf$fitted$metric[1], "HF")
+
+  # Respect user request for uncorrected despite violation
+  spec_bad_none <- comp_spec(df_bad) |>
+    set_roles(outcome = outcome, group = group, id = id) |>
+    set_design("repeated") |>
+    set_outcome_type("numeric") |>
+    set_engine("anova_repeated") |>
+    set_engine_options(correction = "none") |>
+    diagnose() |>
+    test()
+  expect_identical(spec_bad_none$fitted$metric[1], "uncorrected")
+  expect_true(any(grepl("Sphericity violated", spec_bad_none$fitted$notes[[1]])))
 })
 
 test_that("anova_repeated works with non-standard group column names", {
