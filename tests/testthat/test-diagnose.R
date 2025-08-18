@@ -17,6 +17,20 @@ test_that("diagnose attaches diagnostics with expected structure", {
   expect_type(spec$diagnostics$notes, "character")
 })
 
+test_that("diagnose reports contingency info for binary outcomes", {
+  df <- tibble::tibble(
+    outcome = factor(c("yes", "no", "yes", "no")),
+    group = factor(c("A", "A", "B", "B"))
+  )
+  spec <- comp_spec(df) |>
+    set_roles(outcome = outcome, group = group) |>
+    set_design("independent") |>
+    set_outcome_type("binary")
+  spec <- diagnose(spec)
+  expect_named(spec$diagnostics, c("table", "expected", "engine", "notes"))
+  expect_equal(spec$diagnostics$engine, "fisher_exact")
+})
+
 test_that("diagnose errors when outcome is not numeric", {
   # Create a spec with non-numeric outcome
   df <- tibble::tibble(
