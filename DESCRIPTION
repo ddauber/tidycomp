@@ -26,6 +26,7 @@ Imports:
     tidyr
 Suggests:
     broom,
+    exact2x2,
     emmeans,
     knitr,
     lme4,

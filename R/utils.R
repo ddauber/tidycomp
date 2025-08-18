@@ -219,6 +219,7 @@
   if (is.null(id)) {
     cli::cli_abort("Paired design requires an `id` role.")
   }
+  df <- tidyr::drop_na(df)
   if (!is.factor(df$outcome)) {
     df$outcome <- factor(df$outcome)
   }
@@ -300,13 +301,14 @@
 .diagnose_paired_contingency <- function(data, outcome, group, id) {
   wide <- .standardize_paired_categorical(data, outcome, group, id)
   tbl <- table(wide[[1]], wide[[2]])
-  any_lt5 <- any(tbl < 5)
-  notes <- if (any_lt5) {
-    "Discordant pairs < 5; using exact McNemar test."
+  discordant <- tbl[1, 2] + tbl[2, 1]
+  if (discordant < 25) {
+    notes <- "Discordant pairs < 25; using exact McNemar test."
+    engine <- "mcnemar_exact"
   } else {
-    character()
+    notes <- character()
+    engine <- "mcnemar_chi2"
   }
-  engine <- if (any_lt5) "mcnemar_exact" else "mcnemar"
   list(table = tbl, expected = NULL, engine = engine, notes = notes)
 }
 
