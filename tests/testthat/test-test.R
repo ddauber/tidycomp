@@ -364,11 +364,11 @@ test_that("multi-level table uses chisq_nxn", {
   expect_equal(res$fitted$engine, "chisq_nxn")
 })
 
-test_that("paired binary uses mcnemar when counts sufficient", {
+test_that("paired binary uses chi2 when counts sufficient", {
   df <- tibble::tibble(
-    id = rep(1:10, each = 2),
-    group = factor(rep(c("A", "B"), times = 10)),
-    outcome = factor(c(rep(c("yes", "no"), 5), rep(c("no", "yes"), 5)))
+    id = rep(1:30, each = 2),
+    group = factor(rep(c("A", "B"), times = 30)),
+    outcome = factor(c(rep(c("yes", "no"), 15), rep(c("no", "yes"), 15)))
   )
   spec <- suppressMessages(
     comp_spec(df) |>
@@ -377,7 +377,7 @@ test_that("paired binary uses mcnemar when counts sufficient", {
       set_outcome_type("binary")
   )
   res <- suppressMessages(test(spec))
-  expect_equal(res$fitted$engine, "mcnemar")
+  expect_equal(res$fitted$engine, "mcnemar_chi2")
 })
 
 test_that("paired binary with small counts uses mcnemar_exact", {

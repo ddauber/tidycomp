@@ -31,7 +31,8 @@ test_that("engine registry lists available engines", {
       "fisher_exact",
       "chisq_yates",
       "chisq_nxn",
-      "mcnemar",
+      "mcnemar_chi2",
+      "mcnemar_chi2_cc",
       "mcnemar_exact"
     )
   )
@@ -539,24 +540,45 @@ test_that("chisq_nxn engine matches stats::chisq.test", {
   expect_equal(res$p.value, unname(base$p.value))
 })
 
-test_that("mcnemar engine matches stats::mcnemar.test", {
+test_that("mcnemar_chi2 engine matches stats::mcnemar.test", {
   df <- tibble::tibble(
-    id = rep(1:10, each = 2),
-    group = factor(rep(c("A", "B"), times = 10)),
+    id = rep(1:30, each = 2),
+    group = factor(rep(c("A", "B"), times = 30)),
     outcome = factor(c(
-      rep(c("yes", "no"), 5),
-      rep(c("no", "yes"), 5)
+      rep(c("yes", "no"), 15),
+      rep(c("no", "yes"), 15)
     ))
   )
   meta <- make_meta()
-  res <- tidycomp:::engine_mcnemar(df, meta)
+  res <- tidycomp:::engine_mcnemar_chi2(df, meta)
+  wide <- tidyr::pivot_wider(df, names_from = group, values_from = outcome)
+  base <- stats::mcnemar.test(table(wide$A, wide$B), correct = FALSE)
+  expect_equal(res$statistic, unname(base$statistic))
+  expect_equal(res$p.value, unname(base$p.value))
+  expect_equal(res$estimate, 1)
+  expect_false(is.na(res$conf.low))
+  expect_false(is.na(res$conf.high))
+})
+
+test_that("mcnemar_chi2_cc engine matches continuity-corrected test", {
+  df <- tibble::tibble(
+    id = rep(1:30, each = 2),
+    group = factor(rep(c("A", "B"), times = 30)),
+    outcome = factor(c(
+      rep(c("yes", "no"), 15),
+      rep(c("no", "yes"), 15)
+    ))
+  )
+  meta <- make_meta()
+  res <- tidycomp:::engine_mcnemar_chi2_cc(df, meta)
   wide <- tidyr::pivot_wider(df, names_from = group, values_from = outcome)
   base <- stats::mcnemar.test(table(wide$A, wide$B), correct = TRUE)
   expect_equal(res$statistic, unname(base$statistic))
   expect_equal(res$p.value, unname(base$p.value))
 })
 
-test_that("mcnemar_exact engine matches stats::mcnemar.test exact", {
+test_that("mcnemar_exact engine matches exact2x2::mcnemar.exact", {
+  skip_if_not_installed("exact2x2")
   df <- tibble::tibble(
     id = rep(1:5, each = 2),
     group = factor(rep(c("A", "B"), times = 5)),
@@ -565,6 +587,37 @@ test_that("mcnemar_exact engine matches stats::mcnemar.test exact", {
   meta <- make_meta()
   res <- tidycomp:::engine_mcnemar_exact(df, meta)
   wide <- tidyr::pivot_wider(df, names_from = group, values_from = outcome)
-  base <- stats::mcnemar.test(table(wide$A, wide$B), correct = FALSE, exact = TRUE)
+  base <- exact2x2::mcnemar.exact(table(wide$A, wide$B))
   expect_equal(res$p.value, unname(base$p.value))
+  expect_false(is.na(res$conf.low))
+  expect_false(is.na(res$conf.high))
+})
+
+test_that("mcnemar_exact falls back when exact2x2 missing", {
+  df <- tibble::tibble(
+    id = rep(1:5, each = 2),
+    group = factor(rep(c("A", "B"), times = 5)),
+    outcome = factor(c("yes", "no", "yes", "no", "yes", "yes", "no", "no", "yes", "no"))
+  )
+  meta <- make_meta()
+  res <- with_mocked_bindings(
+    tidycomp:::engine_mcnemar_exact(df, meta),
+    requireNamespace = function(...) FALSE,
+    .package = "tidycomp"
+  )
+  expect_true(any(grepl("exact2x2 not installed", unlist(res$notes))))
+})
+
+test_that("mcnemar OR uses continuity correction when needed", {
+  df <- tibble::tibble(
+    id = rep(1:12, each = 2),
+    group = factor(rep(c("A", "B"), times = 12)),
+    outcome = factor(c(
+      rep(c("no", "yes"), 11),
+      "yes", "yes"
+    ))
+  )
+  meta <- make_meta()
+  res <- tidycomp:::engine_mcnemar_chi2(df, meta)
+  expect_equal(res$estimate, (0.5) / (11 + 0.5))
 })
