@@ -384,3 +384,58 @@ test_that(".capture_role errors when as_name returns empty string", {
     }
   )
 })
+
+test_that(".extract_sphericity_p returns NA when as_tibble fails", {
+  sp <- function() NULL
+  res <- tidycomp:::.extract_sphericity_p(sp)
+  expect_type(res, "double")
+  expect_length(res, 1)
+  expect_identical(res, NA_real_)
+})
+
+test_that(".extract_sphericity_p returns NA when required columns missing", {
+  sp <- tibble::tibble(effect = "group", p = 0.1)
+  res <- tidycomp:::.extract_sphericity_p(sp)
+  expect_type(res, "double")
+  expect_length(res, 1)
+  expect_identical(res, NA_real_)
+})
+
+test_that(".extract_sphericity_p returns NA when effect not present", {
+  sp <- tibble::tibble(Effect = "other", p = 0.1)
+  res <- tidycomp:::.extract_sphericity_p(sp)
+  expect_type(res, "double")
+  expect_length(res, 1)
+  expect_identical(res, NA_real_)
+})
+
+test_that(".extract_sphericity_p works with check_sphericity output", {
+  skip_if_not_installed("performance")
+  skip_if_not_installed("afex")
+  data <- tibble::tibble(
+    id = rep(1:4, each = 3),
+    group = factor(rep(c("A", "B", "C"), times = 4)),
+    outcome = rnorm(12)
+  )
+  mod <- afex::aov_ez("id", "outcome", data, within = "group")
+  sp <- performance::check_sphericity(mod)
+  res <- tidycomp:::.extract_sphericity_p(sp)
+  expect_type(res, "double")
+  expect_length(res, 1)
+})
+
+test_that(".standardize_multi_group_numeric aborts when outcome is non-numeric", {
+  data <- data.frame(y = letters[1:4], g = rep(c("A", "B"), each = 2))
+  expect_error(
+    tidycomp:::.standardize_multi_group_numeric(data, "y", "g"),
+    "Outcome must be numeric"
+  )
+})
+
+test_that(".standardize_multi_group_numeric aborts when group has <2 levels", {
+  data <- data.frame(y = 1:3, g = rep("A", 3))
+  expect_error(
+    tidycomp:::.standardize_multi_group_numeric(data, "y", "g"),
+    "Group must have at least 2 levels"
+  )
+})

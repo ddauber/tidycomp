@@ -141,3 +141,17 @@ test_that("report(comp_spec) delegates to comp_result", {
 
   expect_match(msgs_clean, "^Test:", perl = TRUE)
 })
+
+
+test_that("report.comp_result() prints effect size when available", {
+  testthat::local_reproducible_output()
+
+  res <- result
+  res$es_metric <- "g"
+  res$es_value <- 0.25
+  res$es_conf_low <- 0.1
+  res$es_conf_high <- 0.4
+  class(res) <- c("comp_result", "list")
+
+  expect_snapshot(report(res))
+})

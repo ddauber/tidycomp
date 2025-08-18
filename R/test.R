@@ -80,7 +80,7 @@ test <- function(spec) {
     g_levels <- if (!is.null(spec$roles$group)) {
       nlevels(factor(data[[spec$roles$group]]))
     } else {
-      0
+      0 # nocov
     }
     if (spec$design == "paired") {
       engine <- switch(

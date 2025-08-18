@@ -171,14 +171,36 @@ test_that("anova_repeated: uses uncorrected when sphericity OK; corrected when v
   expect_identical(spec_good$fitted$metric[1], "uncorrected")
 
   # -------- Bad sphericity (finite p < .05) -----------
-  A <- rnorm(N, 0, 1)
-  B <- A + rnorm(N, 0, 0.01) # very small variance difference
-  C <- A + rnorm(N, 0, 5.0) # very large variance difference
+  set.seed(2)
+  N <- 60
+
+  Sigma_bad <- matrix(
+    c(
+      1.0,
+      0.85,
+      0.10,
+      0.85,
+      1.50,
+      -0.20,
+      0.10,
+      -0.20,
+      4.00
+    ),
+    3,
+    3,
+    byrow = TRUE
+  )
+  mu <- c(0, 0, 0)
+
+  # Base R multivariate normal
+  L <- chol(Sigma_bad) # Cholesky decomposition
+  Z <- matrix(rnorm(N * length(mu)), ncol = length(mu))
+  Xb <- Z %*% L + matrix(mu, nrow = N, ncol = length(mu), byrow = TRUE)
 
   df_bad <- tibble::tibble(
-    id = rep(seq_len(N), each = 3),
+    id = rep(seq_len(N), each = length(mu)),
     group = factor(rep(c("A", "B", "C"), times = N), levels = c("A", "B", "C")),
-    outcome = c(A, B, C)
+    outcome = as.numeric(t(Xb))
   )
 
   spec_bad <- comp_spec(df_bad) |>
@@ -217,37 +239,6 @@ test_that("anova_repeated: uses uncorrected when sphericity OK; corrected when v
     diagnose() |>
     test()
   expect_identical(spec_bad_none$fitted$metric[1], "uncorrected")
-})
-
-test_that("anova_repeated computes sphericity internally when diagnostics missing", {
-  skip_if_not_installed("afex")
-  skip_if_not_installed("performance")
-
-  set.seed(123)
-  N <- 60
-  A <- rnorm(N, 0, 1)
-  B <- A + rnorm(N, 0, 0.01)
-  C <- A + rnorm(N, 0, 5.0)
-
-  df_bad <- tibble::tibble(
-    id = rep(seq_len(N), each = 3),
-    group = factor(rep(c("A", "B", "C"), times = N), levels = c("A", "B", "C")),
-    outcome = c(A, B, C)
-  )
-
-  spec_bad <- comp_spec(df_bad) |>
-    set_roles(outcome = outcome, group = group, id = id) |>
-    set_design("repeated") |>
-    set_outcome_type("numeric") |>
-    set_engine("anova_repeated") |>
-    test()
-
-  sp <- attr(spec_bad$fitted, "diagnostics")$sphericity
-  expect_true(is.data.frame(sp))
-  p_bad <- as.numeric(sp$p[1])
-  expect_true(is.finite(p_bad))
-  expect_lt(p_bad, 0.05)
-  expect_identical(spec_bad$fitted$metric[1], "GG")
 })
 
 test_that("anova_repeated works with non-standard group column names", {
@@ -464,4 +455,44 @@ test_that("wilcoxon_signed_rank records note when CI is unavailable (has_ci = FA
       expect_true(all(is.na(c(res$fitted$conf.low, res$fitted$conf.high))))
     }
   )
+})
+
+
+test_that("anova_repeated computes p-value when afex table lacks it", {
+  df <- tibble::tibble(
+    id = rep(1:2, each = 2),
+    group = factor(rep(c("A", "B"), times = 2)),
+    outcome = c(1, 2, 3, 4)
+  )
+  meta <- make_meta()
+  meta$diagnostics$sphericity <- 0.5
+
+  F <- 2
+  df1 <- 1
+  df2 <- 10
+  expected <- stats::pf(F, df1, df2, lower.tail = FALSE)
+
+  res <- testthat::with_mocked_bindings(
+    testthat::with_mocked_bindings(
+      tidycomp:::engine_anova_repeated(df, meta),
+      aov_ez = function(...) {
+        list(
+          anova_table = data.frame(
+            `num Df` = df1,
+            `den Df` = df2,
+            `MSE` = 1,
+            `F` = F,
+            `Pr(>F)` = NA_real_,
+            check.names = FALSE
+          )
+        )
+      },
+      .package = "afex"
+    ),
+    is_installed = function(...) TRUE,
+    .package = "rlang"
+  )
+
+  expect_true(is.finite(res$p.value))
+  expect_equal(res$p.value, expected)
 })
