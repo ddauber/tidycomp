@@ -174,6 +174,142 @@
   df
 }
 
+#' Standardize two-factor data
+#'
+#' Select and rename the outcome and group columns, coercing both to factors
+#' and validating that each has at least two levels.
+#'
+#' @param data A data frame.
+#' @param outcome,group Character names of validated columns.
+#' @return A tibble with columns `outcome` and `group` as factors.
+#' @keywords internal
+#' @noRd
+.standardize_two_group_factor <- function(data, outcome, group) {
+  df <- tibble::as_tibble(data[, c(outcome, group)])
+  names(df) <- c("outcome", "group")
+  if (!is.factor(df$outcome)) {
+    df$outcome <- factor(df$outcome)
+  }
+  if (!is.factor(df$group)) {
+    df$group <- factor(df$group)
+  }
+  if (nlevels(df$outcome) < 2) {
+    cli::cli_abort("Outcome must have at least 2 levels for this engine.")
+  }
+  if (nlevels(df$group) < 2) {
+    cli::cli_abort("Group must have at least 2 levels for this engine.")
+  }
+  df
+}
+
+#' Standardize paired categorical data with id
+#'
+#' Select outcome, group, and id columns, validate pairing structure for
+#' binary outcomes, and return a wide tibble with one column per group
+#' ordered by id.
+#'
+#' @param data A data frame.
+#' @param outcome,group,id Character names of validated columns.
+#' @return A tibble with two factor columns named after group levels.
+#' @keywords internal
+#' @noRd
+.standardize_paired_categorical <- function(data, outcome, group, id) {
+  df <- tibble::as_tibble(data[, c(outcome, group, id)])
+  names(df) <- c("outcome", "group", "id")
+  if (is.null(id)) {
+    cli::cli_abort("Paired design requires an `id` role.")
+  }
+  if (!is.factor(df$outcome)) {
+    df$outcome <- factor(df$outcome)
+  }
+  if (nlevels(df$outcome) != 2) {
+    cli::cli_abort("Outcome must have exactly 2 levels for this engine.")
+  }
+  if (!is.factor(df$group)) {
+    df$group <- factor(df$group)
+  }
+  if (nlevels(df$group) != 2) {
+    cli::cli_abort("Group must have exactly 2 levels for this engine.")
+  }
+  counts <- table(df$id)
+  if (any(counts != 2)) {
+    cli::cli_abort("Each id must appear exactly twice (once per group).")
+  }
+  chk <- dplyr::count(df, id, group)
+  if (any(chk$n != 1)) {
+    cli::cli_abort("Each id must have one observation for each group.")
+  }
+  wide <- tidyr::pivot_wider(
+    df,
+    id_cols = "id",
+    names_from = "group",
+    values_from = "outcome"
+  )
+  if (any(!stats::complete.cases(wide))) {
+    cli::cli_abort("Missing outcomes for at least one id.")
+  }
+  tibble::as_tibble(wide[, setdiff(names(wide), "id"), drop = FALSE])
+}
+
+#' Diagnose contingency table conditions
+#'
+#' Internal helper that examines the cross-tabulation of two factors and
+#' returns the table, expected counts, and a recommended engine based on
+#' cell counts.
+#'
+#' @param group,outcome Factor vectors of equal length.
+#' @return A list with elements `table`, `expected`, `engine`, and `notes`.
+#' @keywords internal
+#' @noRd
+.diagnose_contingency <- function(group, outcome) {
+  tbl <- table(group, outcome)
+  expected <- tryCatch(
+    stats::chisq.test(tbl, correct = FALSE)$expected,
+    error = function(e) matrix(NA_real_, nrow(tbl), ncol(tbl))
+  )
+  dims <- dim(tbl)
+  is_2x2 <- all(dims == 2)
+  any_lt5 <- any(tbl < 5)
+  notes <- character()
+  engine <- if (is_2x2) {
+    if (any_lt5) {
+      notes <- c(notes, "Cell count < 5 detected; using Fisher's exact test.")
+      "fisher_exact"
+    } else {
+      "chisq_yates"
+    }
+  } else {
+    if (any_lt5) {
+      notes <- c(notes, "Cell count < 5 detected; chi-squared approximation may be inaccurate.")
+    }
+    "chisq_nxn"
+  }
+  list(table = tbl, expected = expected, engine = engine, notes = notes)
+}
+
+#' Diagnose paired contingency table conditions
+#'
+#' For paired binary outcomes, compute the 2x2 table of responses and
+#' determine whether the exact McNemar test is required.
+#'
+#' @param data A data frame.
+#' @param outcome,group,id Column names for outcome, group, and id.
+#' @return A list like \code{.diagnose_contingency()}.
+#' @keywords internal
+#' @noRd
+.diagnose_paired_contingency <- function(data, outcome, group, id) {
+  wide <- .standardize_paired_categorical(data, outcome, group, id)
+  tbl <- table(wide[[1]], wide[[2]])
+  any_lt5 <- any(tbl < 5)
+  notes <- if (any_lt5) {
+    "Discordant pairs < 5; using exact McNemar test."
+  } else {
+    character()
+  }
+  engine <- if (any_lt5) "mcnemar_exact" else "mcnemar"
+  list(table = tbl, expected = NULL, engine = engine, notes = notes)
+}
+
 #' Flag outliers using common rules
 #'
 #' Compute lower/upper fences for finite values of `x` based on one of
