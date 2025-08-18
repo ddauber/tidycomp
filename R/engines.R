@@ -30,7 +30,12 @@
     kruskal_wallis = engine_kruskal_wallis,
     anova_repeated = engine_anova_repeated,
     anova_repeated_base = engine_anova_repeated_base,
-    friedman = engine_friedman
+    friedman = engine_friedman,
+    fisher_exact = engine_fisher_exact,
+    chisq_yates = engine_chisq_yates,
+    chisq_nxn = engine_chisq_nxn,
+    mcnemar = engine_mcnemar,
+    mcnemar_exact = engine_mcnemar_exact
   )
 }
 
@@ -706,6 +711,161 @@ engine_friedman <- function(data, meta) {
     statistic = unname(fit$statistic),
     df1 = unname(fit$parameter),
     df2 = NA_real_,
+    p.value = unname(fit$p.value),
+    estimate = NA_real_,
+    conf.low = NA_real_,
+    conf.high = NA_real_,
+    metric = NA_character_,
+    notes = list(meta$diagnostics$notes %||% character())
+  )
+  attr(res, "model") <- fit
+  res
+}
+
+#' Fisher's exact test engine (internal)
+#'
+#' @keywords internal
+#' @noRd
+engine_fisher_exact <- function(data, meta) {
+  df <- .standardize_two_group_factor(
+    data,
+    meta$roles$outcome,
+    meta$roles$group
+  )
+  tbl <- table(df$group, df$outcome)
+  fit <- stats::fisher.test(tbl)
+  res <- tibble::tibble(
+    test = "fisher",
+    method = fit$method,
+    engine = "fisher_exact",
+    n = sum(tbl),
+    statistic = NA_real_,
+    df = NA_real_,
+    p.value = unname(fit$p.value),
+    estimate = if (!is.null(fit$estimate)) unname(fit$estimate) else NA_real_,
+    conf.low = if (!is.null(fit$conf.int)) fit$conf.int[1] else NA_real_,
+    conf.high = if (!is.null(fit$conf.int)) fit$conf.int[2] else NA_real_,
+    metric = if (!is.null(fit$estimate)) "odds_ratio" else NA_character_,
+    notes = list(meta$diagnostics$notes %||% character())
+  )
+  attr(res, "model") <- fit
+  res
+}
+
+#' Chi-squared test with Yates continuity correction (2x2)
+#'
+#' @keywords internal
+#' @noRd
+engine_chisq_yates <- function(data, meta) {
+  df <- .standardize_two_group_factor(
+    data,
+    meta$roles$outcome,
+    meta$roles$group
+  )
+  tbl <- table(df$group, df$outcome)
+  fit <- stats::chisq.test(tbl, correct = TRUE)
+  res <- tibble::tibble(
+    test = "chi_squared",
+    method = fit$method,
+    engine = "chisq_yates",
+    n = sum(tbl),
+    statistic = unname(fit$statistic),
+    df = unname(fit$parameter),
+    p.value = unname(fit$p.value),
+    estimate = NA_real_,
+    conf.low = NA_real_,
+    conf.high = NA_real_,
+    metric = NA_character_,
+    notes = list(meta$diagnostics$notes %||% character())
+  )
+  attr(res, "model") <- fit
+  res
+}
+
+#' Chi-squared test for general contingency tables
+#'
+#' @keywords internal
+#' @noRd
+engine_chisq_nxn <- function(data, meta) {
+  df <- .standardize_two_group_factor(
+    data,
+    meta$roles$outcome,
+    meta$roles$group
+  )
+  tbl <- table(df$group, df$outcome)
+  fit <- stats::chisq.test(tbl, correct = FALSE)
+  res <- tibble::tibble(
+    test = "chi_squared",
+    method = fit$method,
+    engine = "chisq_nxn",
+    n = sum(tbl),
+    statistic = unname(fit$statistic),
+    df = unname(fit$parameter),
+    p.value = unname(fit$p.value),
+    estimate = NA_real_,
+    conf.low = NA_real_,
+    conf.high = NA_real_,
+    metric = NA_character_,
+    notes = list(meta$diagnostics$notes %||% character())
+  )
+  attr(res, "model") <- fit
+  res
+}
+
+#' McNemar test engine (paired binary)
+#'
+#' @keywords internal
+#' @noRd
+engine_mcnemar <- function(data, meta) {
+  wide <- .standardize_paired_categorical(
+    data,
+    meta$roles$outcome,
+    meta$roles$group,
+    meta$roles$id
+  )
+  tbl <- table(wide[[1]], wide[[2]])
+  fit <- stats::mcnemar.test(tbl, correct = TRUE)
+  res <- tibble::tibble(
+    test = "mcnemar",
+    method = fit$method,
+    engine = "mcnemar",
+    n = sum(tbl),
+    statistic = unname(fit$statistic),
+    df = unname(fit$parameter),
+    p.value = unname(fit$p.value),
+    estimate = NA_real_,
+    conf.low = NA_real_,
+    conf.high = NA_real_,
+    metric = NA_character_,
+    notes = list(meta$diagnostics$notes %||% character())
+  )
+  attr(res, "model") <- fit
+  res
+}
+
+#' Exact McNemar test engine
+#'
+#' @keywords internal
+#' @noRd
+engine_mcnemar_exact <- function(data, meta) {
+  wide <- .standardize_paired_categorical(
+    data,
+    meta$roles$outcome,
+    meta$roles$group,
+    meta$roles$id
+  )
+  tbl <- table(wide[[1]], wide[[2]])
+  fit <- tryCatch(
+    stats::mcnemar.test(tbl, correct = FALSE, exact = TRUE),
+    error = function(e) stats::mcnemar.test(tbl, correct = FALSE)
+  )
+  res <- tibble::tibble(
+    test = "mcnemar",
+    method = fit$method,
+    engine = "mcnemar_exact",
+    n = sum(tbl),
+    statistic = if (!is.null(fit$statistic)) unname(fit$statistic) else NA_real_,
+    df = if (!is.null(fit$parameter)) unname(fit$parameter) else NA_real_,
     p.value = unname(fit$p.value),
     estimate = NA_real_,
     conf.low = NA_real_,

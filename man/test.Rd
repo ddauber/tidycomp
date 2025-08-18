@@ -9,7 +9,7 @@ test(spec)
 \arguments{
 \item{spec}{A \code{comp_spec} created by \code{\link[=comp_spec]{comp_spec()}} with roles set via
 \code{set_roles(outcome, group)}, \code{design = "independent"} or \code{"paired"}, and
-\code{outcome_type = "numeric"}. Optionally, run \code{\link[=diagnose]{diagnose()}} beforehand.}
+\code{outcome_type = "numeric"} or \code{"binary"}. Optionally, run \code{\link[=diagnose]{diagnose()}} beforehand.}
 }
 \value{
 The input \code{spec}, updated with a fitted \code{comp_result} in \code{spec$fitted}.
@@ -23,7 +23,7 @@ and, when available, \code{spec$diagnostics}.
 \strong{Scope (MVP):}
 \itemize{
 \item Design: \code{design = "independent"} or \code{"paired"}.
-\item Outcome: \code{outcome_type = "numeric"} only.
+\item Outcome: \code{outcome_type = "numeric"} or \code{"binary"}.
 }
 
 \strong{Engine selection (defaults if \code{spec$engine} is \code{NULL}):}

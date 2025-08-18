@@ -71,14 +71,14 @@ test_that("test() requires id for repeated design", {
 
 # removed: test for unsupported designs as repeated design is now supported
 
-test_that("test() requires numeric outcome type", {
+test_that("test() errors when binary outcome column is not factor", {
   spec <- suppressMessages(
     comp_spec(mtcars) |>
       set_roles(outcome = mpg, group = am) |>
       set_design("independent") |>
       set_outcome_type("binary")
   )
-  expect_error(test(spec), "numeric")
+  expect_error(test(spec), "factor")
 })
 
 test_that("default engine is welch_t and warns if diagnostics missing", {
@@ -315,4 +315,83 @@ test_that("warns on severe non-normality with very small n (anova_oneway)", {
       )
     }
   )
+})
+
+# Binary outcome engine selection --------------------------------------------
+
+test_that("small counts trigger fisher_exact", {
+  df <- tibble::tibble(
+    outcome = factor(c("yes", "no", "yes", "no")),
+    group = factor(c("A", "A", "B", "B"))
+  )
+  spec <- suppressMessages(
+    comp_spec(df) |>
+      set_roles(outcome = outcome, group = group) |>
+      set_design("independent") |>
+      set_outcome_type("binary")
+  )
+  res <- suppressMessages(test(spec))
+  expect_equal(res$fitted$engine, "fisher_exact")
+})
+
+test_that("adequate counts use chisq_yates", {
+  df <- tibble::tibble(
+    outcome = factor(c(rep("yes", 5), rep("no", 5), rep("yes", 5), rep("no", 5))),
+    group = factor(rep(c("A", "B"), each = 10))
+  )
+  spec <- suppressMessages(
+    comp_spec(df) |>
+      set_roles(outcome = outcome, group = group) |>
+      set_design("independent") |>
+      set_outcome_type("binary")
+  )
+  res <- suppressMessages(test(spec))
+  expect_equal(res$fitted$engine, "chisq_yates")
+})
+
+test_that("multi-level table uses chisq_nxn", {
+  df <- tidyr::expand_grid(
+    outcome = factor(c("a", "b", "c")),
+    group = factor(c("G1", "G2", "G3"))
+  ) |> tidyr::uncount(5)
+  spec <- suppressMessages(
+    comp_spec(df) |>
+      set_roles(outcome = outcome, group = group) |>
+      set_design("independent") |>
+      set_outcome_type("binary")
+  )
+  res <- suppressMessages(test(spec))
+  expect_equal(res$fitted$engine, "chisq_nxn")
+})
+
+test_that("paired binary uses mcnemar when counts sufficient", {
+  df <- tibble::tibble(
+    id = rep(1:10, each = 2),
+    group = factor(rep(c("A", "B"), times = 10)),
+    outcome = factor(c(rep(c("yes", "no"), 5), rep(c("no", "yes"), 5)))
+  )
+  spec <- suppressMessages(
+    comp_spec(df) |>
+      set_roles(outcome = outcome, group = group, id = id) |>
+      set_design("paired") |>
+      set_outcome_type("binary")
+  )
+  res <- suppressMessages(test(spec))
+  expect_equal(res$fitted$engine, "mcnemar")
+})
+
+test_that("paired binary with small counts uses mcnemar_exact", {
+  df <- tibble::tibble(
+    id = rep(1:5, each = 2),
+    group = factor(rep(c("A", "B"), times = 5)),
+    outcome = factor(c("yes", "no", "yes", "no", "yes", "yes", "no", "no", "yes", "no"))
+  )
+  spec <- suppressMessages(
+    comp_spec(df) |>
+      set_roles(outcome = outcome, group = group, id = id) |>
+      set_design("paired") |>
+      set_outcome_type("binary")
+  )
+  res <- suppressMessages(test(spec))
+  expect_equal(res$fitted$engine, "mcnemar_exact")
 })

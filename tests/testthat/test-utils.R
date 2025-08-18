@@ -439,3 +439,49 @@ test_that(".standardize_multi_group_numeric aborts when group has <2 levels", {
     "Group must have at least 2 levels"
   )
 })
+
+# -----------------------------------------------------------------------------
+# Factor standardization helpers
+# -----------------------------------------------------------------------------
+
+test_that(".standardize_two_group_factor returns expected tibble", {
+  data <- data.frame(
+    outcome = c("yes", "no", "yes", "no"),
+    group = c("A", "A", "B", "B")
+  )
+  res <- tidycomp:::.standardize_two_group_factor(data, "outcome", "group")
+  expect_s3_class(res, "tbl_df")
+  expect_true(is.factor(res$outcome))
+  expect_true(is.factor(res$group))
+})
+
+test_that(".standardize_two_group_factor validates levels", {
+  data <- data.frame(outcome = c("a", "a", "a"), group = c("A", "B", "B"))
+  expect_error(
+    tidycomp:::.standardize_two_group_factor(data, "outcome", "group"),
+    "at least 2 levels"
+  )
+})
+
+test_that(".standardize_paired_categorical returns wide tibble", {
+  data <- tibble::tibble(
+    id = rep(1:3, each = 2),
+    group = factor(rep(c("A", "B"), times = 3)),
+    outcome = factor(c("yes", "no", "no", "no", "yes", "yes"))
+  )
+  res <- tidycomp:::.standardize_paired_categorical(data, "outcome", "group", "id")
+  expect_s3_class(res, "tbl_df")
+  expect_equal(ncol(res), 2)
+})
+
+test_that(".standardize_paired_categorical validates outcome levels", {
+  data <- tibble::tibble(
+    id = rep(1:2, each = 2),
+    group = factor(rep(c("A", "B"), times = 2)),
+    outcome = factor(c("yes", "yes", "no", "no"))
+  )
+  expect_error(
+    tidycomp:::.standardize_paired_categorical(data, "outcome", "group", "id"),
+    "exactly 2 levels"
+  )
+})
