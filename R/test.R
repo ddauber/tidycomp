@@ -65,22 +65,35 @@ test <- function(spec) {
       "Paired or repeated designs require an id role via `set_roles(id = ...)`."
     )
   }
-  if (is.null(spec$outcome_type) || !spec$outcome_type %in% c("numeric", "binary")) {
-    cli::cli_abort("MVP `test()` supports `outcome_type = 'numeric'` or 'binary'.")
+  if (
+    is.null(spec$outcome_type) || !spec$outcome_type %in% c("numeric", "binary")
+  ) {
+    cli::cli_abort(
+      "MVP `test()` supports `outcome_type = 'numeric'` or 'binary'."
+    )
   }
 
   data <- spec$data_prepared %||% spec$data_raw
   if (spec$outcome_type == "binary") {
+    if (
+      !is.factor(data[[spec$roles$outcome]]) ||
+        !is.factor(data[[spec$roles$group]])
+    ) {
+      cli::cli_abort("Binary outcome and group columns must be factors.")
+    }
     diag <- spec$diagnostics
     if (is.null(diag)) {
       cli::cli_warn("`diagnose()` not run; running contingency checks.")
       if (spec$design == "paired") {
-        diag <- .diagnose_paired_contingency(data, spec$roles$outcome, spec$roles$group, spec$roles$id)
+        diag <- .diagnose_paired_contingency(
+          data,
+          spec$roles$outcome,
+          spec$roles$group,
+          spec$roles$id
+        )
       } else {
         g <- data[[spec$roles$group]]
         o <- data[[spec$roles$outcome]]
-        if (!is.factor(g)) g <- factor(g)
-        if (!is.factor(o)) o <- factor(o)
         diag <- .diagnose_contingency(g, o)
       }
       spec$diagnostics <- diag

@@ -469,7 +469,12 @@ test_that(".standardize_paired_categorical returns wide tibble", {
     group = factor(rep(c("A", "B"), times = 3)),
     outcome = factor(c("yes", "no", "no", "no", "yes", "yes"))
   )
-  res <- tidycomp:::.standardize_paired_categorical(data, "outcome", "group", "id")
+  res <- tidycomp:::.standardize_paired_categorical(
+    data,
+    "outcome",
+    "group",
+    "id"
+  )
   expect_s3_class(res, "tbl_df")
   expect_equal(ncol(res), 2)
 })
@@ -478,7 +483,7 @@ test_that(".standardize_paired_categorical validates outcome levels", {
   data <- tibble::tibble(
     id = rep(1:2, each = 2),
     group = factor(rep(c("A", "B"), times = 2)),
-    outcome = factor(c("yes", "yes", "no", "no"))
+    outcome = factor(c("yes", "yes", "no", "maybe"))
   )
   expect_error(
     tidycomp:::.standardize_paired_categorical(data, "outcome", "group", "id"),

@@ -3,6 +3,12 @@
 
 library(tibble)
 
+default_engines <- get(
+  ".tidycomp_engines",
+  asNamespace("tidycomp"),
+  inherits = FALSE
+)
+
 test_that("test() requires a comp_spec", {
   expect_error(test("not a spec"), "comp_spec")
 })
@@ -69,7 +75,6 @@ test_that("test() requires id for repeated design", {
   expect_error(test(spec), "id role")
 })
 
-# removed: test for unsupported designs as repeated design is now supported
 
 test_that("test() errors when binary outcome column is not factor", {
   spec <- suppressMessages(
@@ -279,6 +284,16 @@ test_that("test() errors when `design` is NULL or invalid", {
 })
 
 test_that("warns on severe non-normality with very small n (anova_oneway)", {
+  testthat::local_mocked_bindings(
+    .tidycomp_engines = function() {
+      list(
+        anova_oneway = function(...) list(dummy = TRUE),
+        anova_oneway_welch = function(...) list(dummy = TRUE)
+      )
+    },
+    .env = asNamespace("tidycomp")
+  )
+
   testthat::local_reproducible_output(unicode = FALSE)
   withr::local_options(cli.width = 1e6)
 
@@ -299,27 +314,20 @@ test_that("warns on severe non-normality with very small n (anova_oneway)", {
     ),
     class = "comp_spec"
   )
-
-  testthat::with_mocked_bindings(
-    .tidycomp_engines = function() {
-      list(
-        anova_oneway = function(...) list(dummy = TRUE),
-        anova_oneway_welch = function(...) list(dummy = TRUE)
-      )
-    },
-    .env = asNamespace("tidycomp"),
-    {
-      expect_warning(
-        test(spec),
-        regexp = "\\Q`set_engine('kruskal_wallis')`\\E"
-      )
-    }
+  expect_warning(
+    test(spec),
+    regexp = "\\Q`set_engine('kruskal_wallis')`\\E"
   )
 })
 
 # Binary outcome engine selection --------------------------------------------
 
 test_that("small counts trigger fisher_exact", {
+  testthat::local_mocked_bindings(
+    .tidycomp_engines = default_engines,
+    .env = asNamespace("tidycomp")
+  )
+
   df <- tibble::tibble(
     outcome = factor(c("yes", "no", "yes", "no")),
     group = factor(c("A", "A", "B", "B"))
@@ -336,7 +344,12 @@ test_that("small counts trigger fisher_exact", {
 
 test_that("adequate counts use chisq_yates", {
   df <- tibble::tibble(
-    outcome = factor(c(rep("yes", 5), rep("no", 5), rep("yes", 5), rep("no", 5))),
+    outcome = factor(c(
+      rep("yes", 5),
+      rep("no", 5),
+      rep("yes", 5),
+      rep("no", 5)
+    )),
     group = factor(rep(c("A", "B"), each = 10))
   )
   spec <- suppressMessages(
@@ -353,7 +366,8 @@ test_that("multi-level table uses chisq_nxn", {
   df <- tidyr::expand_grid(
     outcome = factor(c("a", "b", "c")),
     group = factor(c("G1", "G2", "G3"))
-  ) |> tidyr::uncount(5)
+  ) |>
+    tidyr::uncount(5)
   spec <- suppressMessages(
     comp_spec(df) |>
       set_roles(outcome = outcome, group = group) |>
@@ -384,7 +398,18 @@ test_that("paired binary with small counts uses mcnemar_exact", {
   df <- tibble::tibble(
     id = rep(1:5, each = 2),
     group = factor(rep(c("A", "B"), times = 5)),
-    outcome = factor(c("yes", "no", "yes", "no", "yes", "yes", "no", "no", "yes", "no"))
+    outcome = factor(c(
+      "yes",
+      "no",
+      "yes",
+      "no",
+      "yes",
+      "yes",
+      "no",
+      "no",
+      "yes",
+      "no"
+    ))
   )
   spec <- suppressMessages(
     comp_spec(df) |>
