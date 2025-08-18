@@ -15,14 +15,17 @@ Must include at least an outcome variable and a group variable in
 The input \code{spec}, updated with a \code{diagnostics} list.
 }
 \description{
-Run lightweight checks on a \code{comp_spec}. For numeric outcomes this includes
-group sizes, variance heterogeneity (Brown--Forsythe proxy), within-group normality (Shapiro),
-and simple IQR-based outlier counts. For binary outcomes it inspects the contingency
-table between outcome and group to determine whether chi-squared assumptions hold
-or if an exact test is recommended. The function \strong{does not} alter the raw data; it attaches a \code{diagnostics} list to the spec.
+Run lightweight checks on a \code{comp_spec}: for numeric outcomes this includes
+group sizes, variance heterogeneity (Brown–Forsythe proxy), within-group
+normality (Shapiro), and simple IQR-based outlier counts. For binary
+outcomes, it inspects the contingency table between outcome and group to
+determine whether assumptions for chi-squared tests are met or if an exact
+test is warranted. The function \strong{does not} alter the raw data; it attaches
+a \code{diagnostics} list to the spec.
 }
 \details{
-For numeric outcomes, the following summaries are stored in \code{spec$diagnostics}:
+For numeric outcomes, the following summaries are stored in
+\code{spec$diagnostics}:
 \itemize{
 \item \code{group_sizes}: a tibble with counts per group.
 \item \code{var_bf_p}: Brown-Forsythe proxy p-value for variance heterogeneity.
@@ -32,19 +35,15 @@ For numeric outcomes, the following summaries are stored in \code{spec$diagnosti
 (e.g., small groups, variance heterogeneity, non-normality, outliers).
 }
 
-For binary outcomes, diagnostics include:
+For binary outcomes, the diagnostics include:
 \itemize{
 \item \code{table}: the observed contingency table.
 \item \code{expected}: expected counts (when available).
 \item \code{engine}: recommended engine based on cell counts.
 \item \code{notes}: notes on small cells or other issues.
 }
-
-These diagnostics are intended as \strong{signals} to guide strategy/engine
-choices (e.g., robust/permutation) rather than hard pass/fail gates.
 }
 \examples{
-# setup
 spec <- comp_spec(mtcars)
 spec$roles <- list(outcome = "am", group = "cyl")
 spec$design <- "independent"
