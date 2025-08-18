@@ -50,9 +50,29 @@ diagnose <- function(spec) {
   outcome <- roles$outcome
   group <- roles$group
 
+  # If the outcome is declared numeric but isn't, try treating it as binary when
+  # there are only two unique, non-missing values. This accommodates cases where
+  # users supply a categorical 0/1 or logical outcome but forget to set the
+  # outcome type accordingly.
+  if (identical(spec$outcome_type, "numeric") && !is.numeric(df[[outcome]])) {
+    n_lvls <- length(unique(stats::na.omit(df[[outcome]])))
+    if (n_lvls == 2) {
+      cli::cli_inform(
+        "Outcome is non-numeric with two levels; treating outcome type as 'binary'."
+      )
+      spec$outcome_type <- "binary"
+    } else {
+      cli::cli_abort(
+        "`diagnose()` supports numeric or binary outcomes, but the outcome has {n_lvls} levels."
+      )
+    }
+  }
+
   if (spec$outcome_type == "numeric") {
     if (!is.numeric(df[[outcome]])) {
-      cli::cli_abort("`diagnose()` currently supports numeric outcomes.")
+      cli::cli_abort(
+        "`diagnose()` requires a numeric outcome when `outcome_type` is 'numeric'."
+      )
     }
     if (!is.factor(df[[group]])) {
       df[[group]] <- factor(df[[group]])
@@ -96,7 +116,10 @@ diagnose <- function(spec) {
       )
     }
     if (isTRUE(var_hetero)) {
-      notes <- c(notes, "Variance heterogeneity flagged (Brown-Forsythe proxy).")
+      notes <- c(
+        notes,
+        "Variance heterogeneity flagged (Brown-Forsythe proxy)."
+      )
     }
     if (any(norm$p_shapiro < 0.05, na.rm = TRUE)) {
       notes <- c(
@@ -120,7 +143,10 @@ diagnose <- function(spec) {
           error = function(e) NULL
         )
         if (!is.null(fit)) {
-          sp <- tryCatch(performance::check_sphericity(fit), error = function(e) NULL)
+          sp <- tryCatch(
+            performance::check_sphericity(fit),
+            error = function(e) NULL
+          )
           if (!is.null(sp)) {
             if (is.data.frame(sp)) {
               sphericity <- tibble::as_tibble(sp)
@@ -133,7 +159,10 @@ diagnose <- function(spec) {
             }
             p_mauchly <- .extract_sphericity_p(sphericity)
             if (!is.na(p_mauchly) && is.finite(p_mauchly) && p_mauchly < 0.05) {
-              notes <- c(notes, "Sphericity violation flagged (Mauchly p < .05).")
+              notes <- c(
+                notes,
+                "Sphericity violation flagged (Mauchly p < .05)."
+              )
             }
           }
         }
@@ -158,11 +187,15 @@ diagnose <- function(spec) {
       }
       diag <- .diagnose_contingency(df[[group]], df[[outcome]])
     } else {
-      cli::cli_abort("`diagnose()` supports binary outcomes for independent or paired designs.")
+      cli::cli_abort(
+        "`diagnose()` supports binary outcomes for independent or paired designs."
+      )
     }
     spec$diagnostics <- diag
   } else {
-    cli::cli_abort("`diagnose()` does not support outcome type '{spec$outcome_type}'.")
+    cli::cli_abort(
+      "`diagnose()` does not support outcome type '{spec$outcome_type}'."
+    )
   }
   notes <- spec$diagnostics$notes %||% character()
   cli::cli_inform("Diagnostics complete. {length(notes)} note{?s} recorded.")

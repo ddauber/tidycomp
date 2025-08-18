@@ -34,28 +34,26 @@ test_that("diagnose reports contingency info for binary outcomes", {
 test_that("diagnose errors when outcome is not numeric", {
   # Create a spec with non-numeric outcome
   df <- tibble::tibble(
-    outcome = c("low", "medium", "high", "low", "medium", "high"), # character outcome
+    outcome = c("low", "medium", "high", "low", "medium", "high"),
     group = factor(c("A", "A", "B", "B", "A", "B"))
   )
 
   spec <- comp_spec(df) |>
     set_roles(outcome = outcome, group = group) |>
     set_design("independent") |>
-    set_outcome_type("numeric") # This claims it's numeric but it's not
+    set_outcome_type("numeric")
 
-  # This should trigger the error on line 53
   expect_error(
     diagnose(spec),
-    "`diagnose\\(\\)` currently supports numeric outcomes\\.",
+    "supports numeric or binary outcomes",
     class = "rlang_error"
   )
 })
 
-test_that("diagnose errors with different non-numeric outcome types", {
-  # Test with factor outcome
+test_that("diagnose treats two-level non-numeric outcomes as binary", {
   df_factor <- tibble::tibble(
-    outcome = factor(c("low", "medium", "high", "low", "medium", "high")),
-    group = factor(c("A", "A", "B", "B", "A", "B"))
+    outcome = factor(c("yes", "no", "yes", "no")),
+    group = factor(c("A", "A", "B", "B"))
   )
 
   spec_factor <- comp_spec(df_factor) |>
@@ -63,16 +61,16 @@ test_that("diagnose errors with different non-numeric outcome types", {
     set_design("independent") |>
     set_outcome_type("numeric")
 
-  expect_error(
-    diagnose(spec_factor),
-    "`diagnose\\(\\)` currently supports numeric outcomes\\.",
-    class = "rlang_error"
+  spec_factor <- diagnose(spec_factor)
+  expect_named(
+    spec_factor$diagnostics,
+    c("table", "expected", "engine", "notes")
   )
 
   # Test with logical outcome
   df_logical <- tibble::tibble(
-    outcome = c(TRUE, FALSE, TRUE, FALSE, TRUE, FALSE),
-    group = factor(c("A", "A", "B", "B", "A", "B"))
+    outcome = c(TRUE, FALSE, TRUE, FALSE),
+    group = factor(c("A", "A", "B", "B"))
   )
 
   spec_logical <- comp_spec(df_logical) |>
@@ -80,10 +78,10 @@ test_that("diagnose errors with different non-numeric outcome types", {
     set_design("independent") |>
     set_outcome_type("numeric")
 
-  expect_error(
-    diagnose(spec_logical),
-    "`diagnose\\(\\)` currently supports numeric outcomes\\.",
-    class = "rlang_error"
+  spec_logical <- diagnose(spec_logical)
+  expect_named(
+    spec_logical$diagnostics,
+    c("table", "expected", "engine", "notes")
   )
 })
 
