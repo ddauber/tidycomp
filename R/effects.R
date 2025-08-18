@@ -182,7 +182,7 @@ effects <- function(
     es <- effectsize::rank_epsilon_squared(
       fml,
       data = dat,
-      conf_level = conf_level
+      ci = conf_level
     )
 
     estimate <- es[[1]]
@@ -237,21 +237,21 @@ effects <- function(
         es <- effectsize::omega_squared(
           fml,
           data = dat,
-          conf_level = conf_level
+          ci = conf_level
         )
       } else {
-        es <- effectsize::omega_squared(model, conf_level = conf_level)
+        es <- effectsize::omega_squared(model, ci = conf_level)
       }
       candidates <- c("Omega2", "omega.sq", "omega_sq")
     } else if (type == "epsilon2") {
-      es <- effectsize::epsilon_squared(model, conf_level = conf_level)
+      es <- effectsize::epsilon_squared(model, ci = conf_level)
       candidates <- c("Epsilon2", "epsilon.sq", "epsilon_sq")
     } else {
       es <- effectsize::eta_squared(
         model,
         generalized = identical(type, "ges"),
         partial = identical(type, "pes"),
-        conf_level = conf_level
+        ci = conf_level
       )
       candidates <- switch(
         type,
@@ -366,7 +366,7 @@ effects <- function(
       d <- effectsize::cohens_d(
         df[[g[2]]],
         df[[g[1]]],
-        conf_level = conf_level,
+        ci = conf_level,
         hedges.correction = identical(type, "g"),
         paired = TRUE
       )
@@ -375,7 +375,7 @@ effects <- function(
       d <- effectsize::cohens_d(
         fml,
         data = dat,
-        conf_level = conf_level,
+        ci = conf_level,
         hedges.correction = identical(type, "g"),
         paired = FALSE
       )
@@ -421,7 +421,7 @@ effects <- function(
       rbs <- effectsize::rank_biserial(
         df[[g[2]]],
         df[[g[1]]],
-        conf_level = conf_level,
+        ci = conf_level,
         paired = TRUE
       )
     } else {
@@ -429,7 +429,7 @@ effects <- function(
       rbs <- effectsize::rank_biserial(
         fml,
         data = dat,
-        conf_level = conf_level,
+        ci = conf_level,
         paired = FALSE
       )
     }
@@ -479,7 +479,7 @@ effects <- function(
       roles$id
     ))
 
-    kw <- effectsize::kendalls_w(fml, data = dat, conf_level = conf_level)
+    kw <- effectsize::kendalls_w(fml, data = dat, ci = conf_level)
 
     return(tibble::tibble(
       effect = roles$group,
