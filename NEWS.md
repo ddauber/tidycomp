@@ -1,3 +1,9 @@
+# tidycomp 0.3.1
+
+* Added more tests to improve coverage, especially for `effects.R`.
+* Fixing wrong parsing of `conf_level`◔ to `effecsize` package functions. `conf_level` passes now to `ci`
+* Fixed failing tests and note about 'tails' not being imported or specified.
+
 # tidycomp 0.3.0
 
 * Package supports unpaird 2-group comparisons using: student's t-test, Welch's t-test, and Mann-Whitney U test.
