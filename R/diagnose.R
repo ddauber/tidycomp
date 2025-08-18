@@ -50,9 +50,27 @@ diagnose <- function(spec) {
   outcome <- roles$outcome
   group <- roles$group
 
+  # If the outcome is declared numeric but isn't, try treating it as binary when
+  # there are only two unique, non-missing values. This accommodates cases where
+  # users supply a categorical 0/1 or logical outcome but forget to set the
+  # outcome type accordingly.
+  if (identical(spec$outcome_type, "numeric") && !is.numeric(df[[outcome]])) {
+    n_lvls <- length(unique(stats::na.omit(df[[outcome]])))
+    if (n_lvls == 2) {
+      cli::cli_inform(
+        "Outcome is non-numeric with two levels; treating outcome type as 'binary'."
+      )
+      spec$outcome_type <- "binary"
+    } else {
+      cli::cli_abort(
+        "`diagnose()` supports numeric or binary outcomes, but the outcome has {n_lvls} levels."
+      )
+    }
+  }
+
   if (spec$outcome_type == "numeric") {
     if (!is.numeric(df[[outcome]])) {
-      cli::cli_abort("`diagnose()` currently supports numeric outcomes.")
+      cli::cli_abort("`diagnose()` requires a numeric outcome when `outcome_type` is 'numeric'.")
     }
     if (!is.factor(df[[group]])) {
       df[[group]] <- factor(df[[group]])
