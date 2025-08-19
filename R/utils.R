@@ -271,7 +271,12 @@
   dims <- dim(tbl)
   is_2x2 <- all(dims == 2)
   any_lt5 <- any(tbl < 5)
+  any_zero <- any(tbl == 0)
   notes <- character()
+  if (any_zero) {
+    notes <- c(notes, "Zero cell detected; inspect diagnostics$table for details.")
+    cli::cli_warn("Zero cell detected in contingency table.")
+  }
   engine <- if (is_2x2) {
     if (any_lt5) {
       notes <- c(notes, "Cell count < 5 detected; using Fisher's exact test.")
@@ -302,12 +307,16 @@
   wide <- .standardize_paired_categorical(data, outcome, group, id)
   tbl <- table(wide[[1]], wide[[2]])
   discordant <- tbl[1, 2] + tbl[2, 1]
+  notes <- character()
   if (discordant < 25) {
-    notes <- "Discordant pairs < 25; using exact McNemar test."
+    notes <- c(notes, "Discordant pairs < 25; using exact McNemar test.")
     engine <- "mcnemar_exact"
   } else {
-    notes <- character()
     engine <- "mcnemar_chi2"
+  }
+  if (any(tbl == 0)) {
+    notes <- c(notes, "Zero cell detected; inspect diagnostics$table for details.")
+    cli::cli_warn("Zero cell detected in contingency table.")
   }
   list(table = tbl, expected = NULL, engine = engine, notes = notes)
 }

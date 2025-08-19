@@ -7,6 +7,8 @@
 * `set_effects()` gains a `correction` argument for controlling the
   Haldane-Anscombe adjustment in McNemar odds ratios; `effects()` now
   warns when the correction is applied or skipped.
+* `diagnose()` warns about zero cells in categorical comparisons and suggests
+  inspecting `diagnostics$table` for details.
 
 # tidycomp 0.3.0
 

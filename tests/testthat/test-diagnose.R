@@ -31,6 +31,33 @@ test_that("diagnose reports contingency info for binary outcomes", {
   expect_equal(spec$diagnostics$engine, "fisher_exact")
 })
 
+test_that("diagnose warns about zero cells in unpaired contingency tables", {
+  df <- tibble::tibble(
+    outcome = factor(c("yes", "yes", "no", "no")),
+    group = factor(c("A", "A", "B", "B"))
+  )
+  spec <- comp_spec(df) |>
+    set_roles(outcome = outcome, group = group) |>
+    set_design("independent") |>
+    set_outcome_type("binary")
+  expect_warning(spec <- diagnose(spec), "Zero cell detected")
+  expect_true(any(grepl("Zero cell", spec$diagnostics$notes)))
+})
+
+test_that("diagnose warns about zero cells in paired contingency tables", {
+  df <- tibble::tibble(
+    id = c(1, 1, 2, 2),
+    group = factor(c("A", "B", "A", "B")),
+    outcome = factor(c("yes", "yes", "yes", "no"))
+  )
+  spec <- comp_spec(df) |>
+    set_roles(outcome = outcome, group = group, id = id) |>
+    set_design("paired") |>
+    set_outcome_type("binary")
+  expect_warning(spec <- diagnose(spec), "Zero cell detected")
+  expect_true(any(grepl("Zero cell", spec$diagnostics$notes)))
+})
+
 test_that("diagnose errors when outcome is not numeric", {
   # Create a spec with non-numeric outcome
   df <- tibble::tibble(
