@@ -451,6 +451,12 @@
     anova_repeated = "ges",
     anova_repeated_base = "ges",
     friedman = "kendalls_w",
+    fisher_exact = "phi",
+    chisq_yates = "phi",
+    chisq_nxn = "cramers_v",
+    mcnemar_chi2 = "oddsratio",
+    mcnemar_chi2_cc = "oddsratio",
+    mcnemar_exact = "oddsratio",
     NULL
   )
 }

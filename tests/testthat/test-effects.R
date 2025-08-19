@@ -1128,3 +1128,77 @@ test_that("effects(…, type = 'omega2') uses model route for classic ANOVA (non
   expect_equal(es$type, "omega2")
   expect_equal(es$estimate, expected$Omega2[1], tolerance = 1e-6)
 })
+
+# Categorical effect sizes ----------------------------------------------------
+
+test_that("effects() computes phi for fisher_exact", {
+  skip_if_not_installed("effectsize")
+
+  df <- tibble::tibble(
+    outcome = factor(c("yes", "no", "yes", "no", "yes", "no")),
+    group = factor(c("A", "A", "B", "B", "A", "B"))
+  )
+
+  spec <- comp_spec(df) |>
+    set_roles(outcome = outcome, group = group) |>
+    set_design("independent") |>
+    set_outcome_type("binary") |>
+    set_engine("fisher_exact") |>
+    test() |>
+    effects()
+
+  expected <- effectsize::phi(table(df$group, df$outcome))
+
+  expect_s3_class(spec$effects, "tbl_df")
+  expect_equal(spec$effects$type, "phi")
+  expect_equal(spec$effects$estimate, expected$Phi[1], tolerance = 1e-6)
+})
+
+test_that("effects() computes cramers_v for chisq_nxn", {
+  skip_if_not_installed("effectsize")
+
+  df <- tidyr::expand_grid(
+    outcome = factor(c("a", "b", "c")),
+    group = factor(c("G1", "G2", "G3"))
+  ) |>
+    tidyr::uncount(5)
+
+  spec <- comp_spec(df) |>
+    set_roles(outcome = outcome, group = group) |>
+    set_design("independent") |>
+    set_outcome_type("binary") |>
+    set_engine("chisq_nxn") |>
+    test() |>
+    effects()
+
+  expected <- effectsize::cramers_v(table(df$group, df$outcome))
+
+  expect_s3_class(spec$effects, "tbl_df")
+  expect_equal(spec$effects$type, "cramers_v")
+  expect_equal(spec$effects$estimate, expected$Cramers_v[1], tolerance = 1e-6)
+})
+
+test_that("effects() computes oddsratio for mcnemar", {
+  skip_if_not_installed("effectsize")
+
+  df <- tibble::tibble(
+    id = rep(1:30, each = 2),
+    group = factor(rep(c("A", "B"), times = 30)),
+    outcome = factor(c(rep(c("yes", "no"), 15), rep(c("no", "yes"), 15)))
+  )
+
+  spec <- comp_spec(df) |>
+    set_roles(outcome = outcome, group = group, id = id) |>
+    set_design("paired") |>
+    set_outcome_type("binary") |>
+    set_engine("mcnemar_chi2") |>
+    test() |>
+    effects()
+
+  wide <- tidycomp:::.standardize_paired_categorical(df, "outcome", "group", "id")
+  expected <- effectsize::oddsratio(table(wide[[1]], wide[[2]]))
+
+  expect_s3_class(spec$effects, "tbl_df")
+  expect_equal(spec$effects$type, "oddsratio")
+  expect_equal(spec$effects$estimate, expected$Odds_ratio[1], tolerance = 1e-6)
+})
