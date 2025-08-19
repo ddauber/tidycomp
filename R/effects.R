@@ -8,7 +8,8 @@
 #'   engine's recommended default (e.g., "ges" for repeated-measures ANOVA).
 #'   Supported values include: \code{"ges"}, \code{"pes"}, \code{"eta2"},
 #'   \code{"omega2"}, \code{"epsilon2"}, \code{"d"}, \code{"g"},
-#'   \code{"rank_biserial"}, \code{"kendalls_w"}, \code{"r2"}.
+#'   \code{"rank_biserial"}, \code{"kendalls_w"}, \code{"r2"},
+#'   \code{"phi"}, \code{"cramers_v"}, \code{"oddsratio"}.
 #' @param conf_level Confidence interval level (e.g., 0.90). Use \code{NULL}
 #'   to skip confidence intervals. Defaults to 0.95.
 #' @param compute Logical; if \code{TRUE}, \code{\link{test}()} will compute
@@ -43,7 +44,8 @@ set_effects <- function(x, type = "auto", conf_level = 0.95, compute = FALSE) {
 #' @param type Effect size type. Use \code{"auto"} to let the function choose
 #'   an engine-/class-based default. Supported values: \code{"ges"}, \code{"pes"},
 #'   \code{"eta2"}, \code{"omega2"}, \code{"epsilon2"}, \code{"d"}, \code{"g"},
-#'   \code{"rank_biserial"}, \code{"kendalls_w"}, \code{"r2"}.
+#'   \code{"rank_biserial"}, \code{"kendalls_w"}, \code{"r2"}, \code{"phi"},
+#'   \code{"cramers_v"}, \code{"oddsratio"}.
 #' @param conf_level Confidence level (e.g., \code{0.90}); \code{NULL} for none. Defaults to
 #'   \code{0.95}.
 #' @return If \code{x} is a spec, the updated spec with \code{$effects};
@@ -62,7 +64,10 @@ effects <- function(
     "g",
     "rank_biserial",
     "kendalls_w",
-    "r2"
+    "r2",
+    "phi",
+    "cramers_v",
+    "oddsratio"
   ),
   conf_level = 0.95
 ) {
@@ -504,6 +509,78 @@ effects <- function(
   ) {
     stop(
       "Kendall's W requires the original data and roles; call effects() on a spec.",
+      call. = FALSE
+    )
+  }
+
+  # --- Contingency tables: phi, Cramer's V, odds ratio ---
+  if (
+    type %in% c("phi", "cramers_v", "oddsratio") &&
+      inherits(model, "htest") &&
+      !is.null(parent_spec)
+  ) {
+    if (!rlang::is_installed("effectsize")) {
+      stop("Package 'effectsize' is required for contingency-table effect sizes.", call. = FALSE)
+    }
+
+    dat <- .get_spec_data(parent_spec)
+    roles <- .get_spec_roles(parent_spec)
+
+    if (is.null(roles$id)) {
+      tbl <- table(dat[[roles$group]], dat[[roles$outcome]])
+    } else {
+      wide <- .standardize_paired_categorical(
+        dat,
+        roles$outcome,
+        roles$group,
+        roles$id
+      )
+      tbl <- table(wide[[1]], wide[[2]])
+    }
+
+    hint <- .engine_effect_hint(parent_spec$engine)
+    if (!is.null(hint) && !identical(hint, type)) {
+      cli::cli_warn(
+        "Engine `{parent_spec$engine}` recommends effect size `{hint}`; `{type}` was requested."
+      )
+    }
+
+    if (type == "phi") {
+      if (nrow(tbl) > 2 || ncol(tbl) > 2) {
+        cli::cli_warn(
+          "Phi is typically for 2x2 tables; consider `set_effects(type = 'cramers_v')`."
+        )
+      }
+      es <- effectsize::phi(tbl, ci = conf_level)
+      est <- es$Phi %||% es$phi %||% es[[1]]
+    } else if (type == "cramers_v") {
+      if (nrow(tbl) == 2 && ncol(tbl) == 2) {
+        cli::cli_warn(
+          "Cramer's V equals phi for 2x2 tables; consider `set_effects(type = 'phi')`."
+        )
+      }
+      es <- effectsize::cramers_v(tbl, ci = conf_level)
+      est <- es$Cramers_v %||% es$Cramers_V %||% es[[1]]
+    } else {
+      es <- effectsize::oddsratio(tbl, ci = conf_level)
+      est <- es$Odds_ratio %||% es$OR %||% es[[1]]
+    }
+
+    return(tibble::tibble(
+      effect = roles$group,
+      type = type,
+      estimate = est,
+      conf.low = if (!is.null(conf_level)) es$CI_low else NA_real_,
+      conf.high = if (!is.null(conf_level)) es$CI_high else NA_real_
+    ))
+  }
+  if (
+    type %in% c("phi", "cramers_v", "oddsratio") &&
+      inherits(model, "htest") &&
+      is.null(parent_spec)
+  ) {
+    stop(
+      "Contingency-table effect sizes require the original data and roles; call effects() on a spec.",
       call. = FALSE
     )
   }

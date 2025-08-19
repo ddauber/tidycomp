@@ -3,6 +3,7 @@
 * Added more tests to improve coverage, especially for `effects.R`.
 * Fixing wrong parsing of `conf_level`◔ to `effecsize` package functions. `conf_level` passes now to `ci`
 * Fixed failing tests and note about 'tails' not being imported or specified.
+* Added effect size support for categorical comparison engines (phi, Cramer's V, and odds ratio).
 
 # tidycomp 0.3.0
 
