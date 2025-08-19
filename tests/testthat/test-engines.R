@@ -659,18 +659,12 @@ test_that("mcnemar OR uses continuity correction when exact2x2 is unavailable", 
 
   meta <- make_meta()
 
-  # Mock requireNamespace to simulate exact2x2 not being installed
-  testthat::local_mocked_bindings(
-    requireNamespace = function(pkg, ...) {
-      if (pkg == "exact2x2") {
-        return(FALSE)
-      }
-      base::requireNamespace(pkg, ...)
-    },
-    .env = environment(tidycomp:::engine_mcnemar_exact)
+  # Simulate missing exact2x2 by mocking requireNamespace in base
+  res <- testthat::with_mocked_bindings(
+    tidycomp:::engine_mcnemar_exact(df, meta),
+    requireNamespace = function(pkg, quietly = TRUE) FALSE,
+    .package = "base" # <-- mock in base namespace
   )
-
-  res <- tidycomp:::engine_mcnemar_exact(df, meta)
 
   # b = 0, c = 11 -> corrected OR = 11 / 0.5 = 22
   expect_equal(res$estimate, 22)
