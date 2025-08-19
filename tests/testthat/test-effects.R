@@ -1252,8 +1252,9 @@ test_that("oddsratio for mcnemar_exact applies Haldane-Anscombe correction", {
     set_outcome_type("binary") |>
     set_engine("mcnemar_exact") |>
     set_effects(type = "oddsratio") |>
-    test() |>
-    effects()
+    test()
+
+  expect_warning(spec <- effects(spec), "Haldane-Anscombe")
 
   wide <- tidycomp:::.standardize_paired_categorical(df, "outcome", "group", "id")
   tbl <- table(wide[[1]], wide[[2]])
@@ -1264,4 +1265,28 @@ test_that("oddsratio for mcnemar_exact applies Haldane-Anscombe correction", {
   expect_s3_class(spec$effects, "tbl_df")
   expect_equal(spec$effects$type, "oddsratio")
   expect_equal(spec$effects$estimate, expected[[1]], tolerance = 1e-6)
+})
+
+test_that("oddsratio correction can be disabled", {
+  skip_if_not_installed("effectsize")
+
+  df <- tibble::tibble(
+    id = rep(1:12, each = 2),
+    group = factor(rep(c("A", "B"), times = 12)),
+    outcome = factor(c(rep(c("no", "yes"), 11), "yes", "yes"))
+  )
+
+  spec <- comp_spec(df) |>
+    set_roles(outcome = outcome, group = group, id = id) |>
+    set_design("paired") |>
+    set_outcome_type("binary") |>
+    set_engine("mcnemar_exact") |>
+    set_effects(type = "oddsratio", correction = FALSE) |>
+    test()
+
+  expect_warning(spec <- effects(spec), "uncorrected odds ratio")
+
+  expect_s3_class(spec$effects, "tbl_df")
+  expect_equal(spec$effects$type, "oddsratio")
+  expect_true(is.infinite(spec$effects$estimate))
 })

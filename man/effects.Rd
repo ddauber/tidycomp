@@ -8,7 +8,8 @@ effects(
   x,
   type = c("auto", "ges", "pes", "eta2", "omega2", "epsilon2", "d", "g", "rank_biserial",
     "kendalls_w", "r2", "phi", "cramers_v", "oddsratio"),
-  conf_level = 0.95
+  conf_level = 0.95,
+  correction = TRUE
 )
 }
 \arguments{
@@ -23,6 +24,10 @@ an engine-/class-based default. Supported values: \code{"ges"}, \code{"pes"},
 
 \item{conf_level}{Confidence level (e.g., \code{0.90}); \code{NULL} for none. Defaults to
 \code{0.95}.}
+
+\item{correction}{Logical; apply a continuity correction when computing odds
+ratios for McNemar tests with zero discordant cells. Defaults to
+\code{TRUE}.}
 }
 \value{
 If \code{x} is a spec, the updated spec with \code{$effects};

@@ -4,6 +4,9 @@
 * Fixing wrong parsing of `conf_level`◔ to `effecsize` package functions. `conf_level` passes now to `ci`
 * Fixed failing tests and note about 'tails' not being imported or specified.
 * Added effect size support for categorical comparison engines (phi, Cramer's V, and odds ratio).
+* `set_effects()` gains a `correction` argument for controlling the
+  Haldane-Anscombe adjustment in McNemar odds ratios; `effects()` now
+  warns when the correction is applied or skipped.
 
 # tidycomp 0.3.0
 
