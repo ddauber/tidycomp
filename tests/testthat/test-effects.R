@@ -1202,3 +1202,57 @@ test_that("effects() computes oddsratio for mcnemar", {
   expect_equal(spec$effects$type, "oddsratio")
   expect_equal(spec$effects$estimate, expected$Odds_ratio[1], tolerance = 1e-6)
 })
+
+test_that("effects() defaults to cohens_g for mcnemar_exact", {
+  skip_if_not_installed("effectsize")
+
+  df <- tibble::tibble(
+    id = rep(1:30, each = 2),
+    group = factor(rep(c("A", "B"), times = 30)),
+    outcome = factor(c(rep(c("yes", "no"), 20), rep(c("no", "yes"), 10)))
+  )
+
+  spec <- comp_spec(df) |>
+    set_roles(outcome = outcome, group = group, id = id) |>
+    set_design("paired") |>
+    set_outcome_type("binary") |>
+    set_engine("mcnemar_exact") |>
+    test() |>
+    effects()
+
+  wide <- tidycomp:::.standardize_paired_categorical(df, "outcome", "group", "id")
+  expected <- effectsize::cohens_g(table(wide[[1]], wide[[2]]))
+
+  expect_s3_class(spec$effects, "tbl_df")
+  expect_equal(spec$effects$type, "cohens_g")
+  expect_equal(spec$effects$estimate, expected[[1]], tolerance = 1e-6)
+})
+
+test_that("oddsratio for mcnemar_exact applies Haldane-Anscombe correction", {
+  skip_if_not_installed("effectsize")
+
+  df <- tibble::tibble(
+    id = rep(1:12, each = 2),
+    group = factor(rep(c("A", "B"), times = 12)),
+    outcome = factor(c(rep(c("no", "yes"), 11), "yes", "yes"))
+  )
+
+  spec <- comp_spec(df) |>
+    set_roles(outcome = outcome, group = group, id = id) |>
+    set_design("paired") |>
+    set_outcome_type("binary") |>
+    set_engine("mcnemar_exact") |>
+    set_effects(type = "oddsratio") |>
+    test() |>
+    effects()
+
+  wide <- tidycomp:::.standardize_paired_categorical(df, "outcome", "group", "id")
+  tbl <- table(wide[[1]], wide[[2]])
+  if (tbl[1, 2] == 0) tbl[1, 2] <- tbl[1, 2] + 0.5
+  if (tbl[2, 1] == 0) tbl[2, 1] <- tbl[2, 1] + 0.5
+  expected <- effectsize::oddsratio(tbl)
+
+  expect_s3_class(spec$effects, "tbl_df")
+  expect_equal(spec$effects$type, "oddsratio")
+  expect_equal(spec$effects$estimate, expected[[1]], tolerance = 1e-6)
+})
