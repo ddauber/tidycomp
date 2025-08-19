@@ -4,7 +4,8 @@
 \alias{set_effects}
 \title{Set effect size options}
 \usage{
-set_effects(x, type = "auto", conf_level = 0.95, compute = FALSE)
+set_effects(x, type = "auto", conf_level = 0.95, correction = TRUE,
+  compute = FALSE)
 }
 \arguments{
 \item{x}{A model specification object created with \code{\link{comp_spec}()}.}
@@ -18,6 +19,10 @@ Supported values include: \code{"ges"}, \code{"pes"}, \code{"eta2"},
 
 \item{conf_level}{Confidence interval level (e.g., 0.90). Use \code{NULL}
 to skip confidence intervals. Defaults to 0.95.}
+
+\item{correction}{Logical; apply a continuity correction when computing odds
+ratios for McNemar tests with zero discordant cells. Defaults to
+\code{TRUE}.}
 
 \item{compute}{Logical; if \code{TRUE}, \code{\link{test}()} will compute
 effect sizes automatically (by calling \code{effects()}) after the test.
