@@ -6,12 +6,12 @@
 #'
 #' @param spec A `comp_spec` created by [comp_spec()] with roles set via
 #'   `set_roles(outcome, group)`, `design = "independent"` or `"paired"`, and
-#'   `outcome_type = "numeric"`. Optionally, run [diagnose()] beforehand.
+#'   `outcome_type = "numeric"` or `"binary"`. Optionally, run [diagnose()] beforehand.
 #'
 #' @details
 #' **Scope (MVP):**
 #' - Design: `design = "independent"` or `"paired"`.
-#' - Outcome: `outcome_type = "numeric"` only.
+#' - Outcome: `outcome_type = "numeric"` or `"binary"`.
 #'
 #' **Engine selection (defaults if `spec$engine` is `NULL`):**
 #' - `strategy = "parametric"` → Student's *t* (`"student_t"`).
@@ -65,91 +65,123 @@ test <- function(spec) {
       "Paired or repeated designs require an id role via `set_roles(id = ...)`."
     )
   }
-  if (is.null(spec$outcome_type) || spec$outcome_type != "numeric") {
-    cli::cli_abort("MVP `test()` supports `outcome_type = 'numeric'` only.")
+  if (
+    is.null(spec$outcome_type) || !spec$outcome_type %in% c("numeric", "binary")
+  ) {
+    cli::cli_abort(
+      "MVP `test()` supports `outcome_type = 'numeric'` or 'binary'."
+    )
   }
 
   data <- spec$data_prepared %||% spec$data_raw
-  if (is.null(spec$diagnostics)) {
+  if (spec$outcome_type == "binary") {
+    if (
+      !is.factor(data[[spec$roles$outcome]]) ||
+        !is.factor(data[[spec$roles$group]])
+    ) {
+      cli::cli_abort("Binary outcome and group columns must be factors.")
+    }
+    diag <- spec$diagnostics
+    if (is.null(diag)) {
+      cli::cli_warn("`diagnose()` not run; running contingency checks.")
+      if (spec$design == "paired") {
+        diag <- .diagnose_paired_contingency(
+          data,
+          spec$roles$outcome,
+          spec$roles$group,
+          spec$roles$id
+        )
+      } else {
+        g <- data[[spec$roles$group]]
+        o <- data[[spec$roles$outcome]]
+        diag <- .diagnose_contingency(g, o)
+      }
+      spec$diagnostics <- diag
+    }
+  } else if (is.null(spec$diagnostics)) {
     cli::cli_warn("`diagnose()` not run; proceeding without diagnostic notes.")
   }
 
   # engine choice
   engine <- spec$engine
   if (is.null(engine)) {
-    g_levels <- if (!is.null(spec$roles$group)) {
-      nlevels(factor(data[[spec$roles$group]]))
+    if (spec$outcome_type == "binary") {
+      engine <- spec$diagnostics$engine
     } else {
-      0 # nocov
-    }
-    if (spec$design == "paired") {
-      engine <- switch(
-        spec$strategy,
-        auto = "paired_t",
-        pragmatic = "paired_t",
-        parametric = "paired_t",
-        robust = "paired_t",
-        permutation = "paired_t",
-        "paired_t"
-      )
-    } else if (spec$design == "repeated") {
-      engine <- switch(
-        spec$strategy,
-        auto = "anova_repeated",
-        pragmatic = "anova_repeated",
-        parametric = "anova_repeated",
-        robust = "anova_repeated",
-        permutation = "anova_repeated",
-        "anova_repeated"
-      )
-      diag <- spec$diagnostics
-      if (!is.null(diag)) {
-        p_mauchly <- .extract_sphericity_p(diag$sphericity)
-        if (is.finite(p_mauchly) && !is.na(p_mauchly) && p_mauchly < 0.05) {
-          cli::cli_warn(
-            "Sphericity violation detected; consider `set_engine('friedman')`."
-          )
-        }
+      g_levels <- if (!is.null(spec$roles$group)) {
+        nlevels(factor(data[[spec$roles$group]]))
+      } else {
+        0 # nocov
       }
-    } else {
-      if (g_levels > 2) {
+      if (spec$design == "paired") {
         engine <- switch(
           spec$strategy,
-          auto = "anova_oneway_welch",
-          pragmatic = "anova_oneway_welch",
-          parametric = "anova_oneway_equal",
-          robust = "anova_oneway_welch",
-          permutation = "anova_oneway_welch",
-          "anova_oneway_welch"
+          auto = "paired_t",
+          pragmatic = "paired_t",
+          parametric = "paired_t",
+          robust = "paired_t",
+          permutation = "paired_t",
+          "paired_t"
+        )
+      } else if (spec$design == "repeated") {
+        engine <- switch(
+          spec$strategy,
+          auto = "anova_repeated",
+          pragmatic = "anova_repeated",
+          parametric = "anova_repeated",
+          robust = "anova_repeated",
+          permutation = "anova_repeated",
+          "anova_repeated"
         )
         diag <- spec$diagnostics
         if (!is.null(diag)) {
-          small_n <- any((diag$group_sizes$n) < 15)
-          nonnorm <- any(diag$normality$p_shapiro < 0.01, na.rm = TRUE)
-          if (small_n && nonnorm) {
+          p_mauchly <- .extract_sphericity_p(diag$sphericity)
+          if (is.finite(p_mauchly) && !is.na(p_mauchly) && p_mauchly < 0.05) {
             cli::cli_warn(
-              "Severe non-normality with very small n detected; consider `set_engine('kruskal_wallis')`."
+              "Sphericity violation detected; consider `set_engine('friedman')`."
             )
           }
         }
       } else {
-        engine <- switch(
-          spec$strategy,
-          auto = "welch_t",
-          pragmatic = "welch_t",
-          parametric = "student_t",
-          robust = "welch_t",
-          permutation = "welch_t",
-          "welch_t"
-        )
-        diag <- spec$diagnostics
-        if (!is.null(diag)) {
-          small_n <- any((diag$group_sizes$n) < 15)
-          nonnorm <- any(diag$normality$p_shapiro < 0.01, na.rm = TRUE)
-          if (small_n && nonnorm) {
-            cli::cli_warn(
-              "Severe non-normality with very small n detected; consider `set_engine('mann_whitney')`."
-            )
+        if (g_levels > 2) {
+          engine <- switch(
+            spec$strategy,
+            auto = "anova_oneway_welch",
+            pragmatic = "anova_oneway_welch",
+            parametric = "anova_oneway_equal",
+            robust = "anova_oneway_welch",
+            permutation = "anova_oneway_welch",
+            "anova_oneway_welch"
+          )
+          diag <- spec$diagnostics
+          if (!is.null(diag)) {
+            small_n <- any((diag$group_sizes$n) < 15)
+            nonnorm <- any(diag$normality$p_shapiro < 0.01, na.rm = TRUE)
+            if (small_n && nonnorm) {
+              cli::cli_warn(
+                "Severe non-normality with very small n detected; consider `set_engine('kruskal_wallis')`."
+              )
+            }
+          }
+        } else {
+          engine <- switch(
+            spec$strategy,
+            auto = "welch_t",
+            pragmatic = "welch_t",
+            parametric = "student_t",
+            robust = "welch_t",
+            permutation = "welch_t",
+            "welch_t"
+          )
+          diag <- spec$diagnostics
+          if (!is.null(diag)) {
+            small_n <- any((diag$group_sizes$n) < 15)
+            nonnorm <- any(diag$normality$p_shapiro < 0.01, na.rm = TRUE)
+            if (small_n && nonnorm) {
+              cli::cli_warn(
+                "Severe non-normality with very small n detected; consider `set_engine('mann_whitney')`."
+              )
+            }
           }
         }
       }

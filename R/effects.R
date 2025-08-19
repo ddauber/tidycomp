@@ -8,9 +8,13 @@
 #'   engine's recommended default (e.g., "ges" for repeated-measures ANOVA).
 #'   Supported values include: \code{"ges"}, \code{"pes"}, \code{"eta2"},
 #'   \code{"omega2"}, \code{"epsilon2"}, \code{"d"}, \code{"g"},
-#'   \code{"rank_biserial"}, \code{"kendalls_w"}, \code{"r2"}.
+#'   \code{"rank_biserial"}, \code{"kendalls_w"}, \code{"r2"},
+#'   \code{"phi"}, \code{"cramers_v"}, \code{"cohens_g"}, \code{"oddsratio"}.
 #' @param conf_level Confidence interval level (e.g., 0.90). Use \code{NULL}
 #'   to skip confidence intervals. Defaults to 0.95.
+#' @param correction Logical; apply a continuity correction when computing
+#'   odds ratios for McNemar tests with zero discordant cells. Defaults to
+#'   \code{TRUE}.
 #' @param compute Logical; if \code{TRUE}, \code{\link{test}()} will compute
 #'   effect sizes automatically (by calling \code{effects()}) after the test.
 #'   Default is \code{FALSE}.
@@ -18,10 +22,21 @@
 #'   \code{$effects_args}.
 #' @seealso \code{\link{effects}}, \code{\link{set_engine}}, \code{\link{set_engine_options}}, \code{\link{test}}
 #' @export
-set_effects <- function(x, type = "auto", conf_level = 0.95, compute = FALSE) {
+set_effects <- function(
+  x,
+  type = "auto",
+  conf_level = 0.95,
+  correction = TRUE,
+  compute = FALSE
+) {
   x$effects_args <- utils::modifyList(
     x$effects_args %||% list(),
-    list(type = type, conf_level = conf_level, compute = compute)
+    list(
+      type = type,
+      conf_level = conf_level,
+      correction = correction,
+      compute = compute
+    )
   )
   x
 }
@@ -43,9 +58,13 @@ set_effects <- function(x, type = "auto", conf_level = 0.95, compute = FALSE) {
 #' @param type Effect size type. Use \code{"auto"} to let the function choose
 #'   an engine-/class-based default. Supported values: \code{"ges"}, \code{"pes"},
 #'   \code{"eta2"}, \code{"omega2"}, \code{"epsilon2"}, \code{"d"}, \code{"g"},
-#'   \code{"rank_biserial"}, \code{"kendalls_w"}, \code{"r2"}.
+#'   \code{"rank_biserial"}, \code{"kendalls_w"}, \code{"r2"}, \code{"phi"},
+#'   \code{"cramers_v"}, \code{"cohens_g"}, \code{"oddsratio"}.
 #' @param conf_level Confidence level (e.g., \code{0.90}); \code{NULL} for none. Defaults to
 #'   \code{0.95}.
+#' @param correction Logical; apply a continuity correction when computing
+#'   odds ratios for McNemar tests with zero discordant cells. Defaults to
+#'   \code{TRUE}.
 #' @return If \code{x} is a spec, the updated spec with \code{$effects};
 #'   otherwise a tibble of effect sizes.
 #' @export
@@ -62,9 +81,14 @@ effects <- function(
     "g",
     "rank_biserial",
     "kendalls_w",
-    "r2"
+    "r2",
+    "phi",
+    "cramers_v",
+    "cohens_g",
+    "oddsratio"
   ),
-  conf_level = 0.95
+  conf_level = 0.95,
+  correction = TRUE
 ) {
   type <- match.arg(type)
   is_spec <- inherits(x, "comp_spec")
@@ -84,6 +108,7 @@ effects <- function(
   user_args <- if (is_spec) (x$effects_args %||% list()) else list()
   type_arg <- user_args$type %||% NULL
   ci_arg <- user_args$conf_level
+  corr_arg <- user_args$correction
 
   final_type <- if (!identical(type, "auto")) type else (type_arg %||% "auto")
   final_ci <- if (!missing(conf_level)) {
@@ -98,17 +123,26 @@ effects <- function(
     final_type <- .default_effect_type(x, fitted, mod)
   }
 
+  final_corr <- if (!missing(correction)) {
+    correction
+  } else if ("correction" %in% names(user_args)) {
+    corr_arg
+  } else {
+    TRUE
+  }
+
   out <- .compute_effects(
     model = mod,
     type = final_type,
     conf_level = final_ci,
-    parent_spec = if (is_spec) x else NULL
+    parent_spec = if (is_spec) x else NULL,
+    correction = final_corr
   )
 
   if (is_spec) {
     x$effects_args <- utils::modifyList(
       x$effects_args %||% list(),
-      list(type = final_type, conf_level = final_ci)
+      list(type = final_type, conf_level = final_ci, correction = final_corr)
     )
     x$effects <- out
     return(x)
@@ -167,7 +201,13 @@ effects <- function(
 .get_spec_roles <- function(spec) spec$roles
 
 # core router: compute effect sizes using effectsize/performance ONLY from proper inputs
-.compute_effects <- function(model, type, conf_level, parent_spec = NULL) {
+.compute_effects <- function(
+  model,
+  type,
+  conf_level,
+  parent_spec = NULL,
+  correction = TRUE
+) {
   # --- Kruskal-Wallis: rank-based epsilon squared from raw data ---
   if (
     type == "epsilon2" &&
@@ -504,6 +544,98 @@ effects <- function(
   ) {
     stop(
       "Kendall's W requires the original data and roles; call effects() on a spec.",
+      call. = FALSE
+    )
+  }
+
+  # --- Contingency tables: phi, Cramer's V, Cohen's g, odds ratio ---
+  if (
+    type %in% c("phi", "cramers_v", "cohens_g", "oddsratio") &&
+      inherits(model, "htest") &&
+      !is.null(parent_spec)
+  ) {
+    if (!rlang::is_installed("effectsize")) {
+      stop("Package 'effectsize' is required for contingency-table effect sizes.", call. = FALSE)
+    }
+
+    dat <- .get_spec_data(parent_spec)
+    roles <- .get_spec_roles(parent_spec)
+
+    if (is.null(roles$id)) {
+      tbl <- table(dat[[roles$group]], dat[[roles$outcome]])
+    } else {
+      wide <- .standardize_paired_categorical(
+        dat,
+        roles$outcome,
+        roles$group,
+        roles$id
+      )
+      tbl <- table(wide[[1]], wide[[2]])
+    }
+
+    hint <- .engine_effect_hint(parent_spec$engine)
+    if (!is.null(hint) && !identical(hint, type)) {
+      cli::cli_warn(
+        "Engine `{parent_spec$engine}` recommends effect size `{hint}`; `{type}` was requested."
+      )
+    }
+
+    if (type == "phi") {
+      if (nrow(tbl) > 2 || ncol(tbl) > 2) {
+        cli::cli_warn(
+          "Phi is typically for 2x2 tables; consider `set_effects(type = 'cramers_v')`."
+        )
+      }
+      es <- effectsize::phi(tbl, ci = conf_level)
+      est <- es$Phi %||% es$phi %||% es[[1]]
+    } else if (type == "cramers_v") {
+      if (nrow(tbl) == 2 && ncol(tbl) == 2) {
+        cli::cli_warn(
+          "Cramer's V equals phi for 2x2 tables; consider `set_effects(type = 'phi')`."
+        )
+      }
+      es <- effectsize::cramers_v(tbl, ci = conf_level)
+      est <- es$Cramers_v %||% es$Cramers_V %||% es[[1]]
+    } else if (type == "cohens_g") {
+      es <- effectsize::cohens_g(tbl, ci = conf_level)
+      est <- es$Cohens_g %||% es$cohens_g %||% es[[1]]
+    } else {
+      if (identical(parent_spec$engine, "mcnemar_exact")) {
+        b <- tbl[1, 2]
+        c <- tbl[2, 1]
+        if (b == 0 || c == 0) {
+          if (isTRUE(correction)) {
+            cli::cli_warn(
+              "Zero cell(s) in 2x2 table; applying Haldane-Anscombe correction."
+            )
+            if (b == 0) tbl[1, 2] <- tbl[1, 2] + 0.5
+            if (c == 0) tbl[2, 1] <- tbl[2, 1] + 0.5
+          } else {
+            cli::cli_warn(
+              "Zero cell(s) in 2x2 table; returning uncorrected odds ratio."
+            )
+          }
+        }
+      }
+      es <- effectsize::oddsratio(tbl, ci = conf_level)
+      est <- es$Odds_ratio %||% es$OR %||% es[[1]]
+    }
+
+    return(tibble::tibble(
+      effect = roles$group,
+      type = type,
+      estimate = est,
+      conf.low = if (!is.null(conf_level)) es$CI_low else NA_real_,
+      conf.high = if (!is.null(conf_level)) es$CI_high else NA_real_
+    ))
+  }
+  if (
+    type %in% c("phi", "cramers_v", "cohens_g", "oddsratio") &&
+      inherits(model, "htest") &&
+      is.null(parent_spec)
+  ) {
+    stop(
+      "Contingency-table effect sizes require the original data and roles; call effects() on a spec.",
       call. = FALSE
     )
   }

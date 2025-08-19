@@ -1128,3 +1128,165 @@ test_that("effects(…, type = 'omega2') uses model route for classic ANOVA (non
   expect_equal(es$type, "omega2")
   expect_equal(es$estimate, expected$Omega2[1], tolerance = 1e-6)
 })
+
+# Categorical effect sizes ----------------------------------------------------
+
+test_that("effects() computes phi for fisher_exact", {
+  skip_if_not_installed("effectsize")
+
+  df <- tibble::tibble(
+    outcome = factor(c("yes", "no", "yes", "no", "yes", "no")),
+    group = factor(c("A", "A", "B", "B", "A", "B"))
+  )
+
+  spec <- comp_spec(df) |>
+    set_roles(outcome = outcome, group = group) |>
+    set_design("independent") |>
+    set_outcome_type("binary") |>
+    set_engine("fisher_exact") |>
+    test() |>
+    effects()
+
+  expected <- effectsize::phi(table(df$group, df$outcome))
+
+  expect_s3_class(spec$effects, "tbl_df")
+  expect_equal(spec$effects$type, "phi")
+  expect_equal(
+    spec$effects$estimate,
+    expected$phi_adjusted[1],
+    tolerance = 1e-6
+  )
+})
+
+test_that("effects() computes cramers_v for chisq_nxn", {
+  skip_if_not_installed("effectsize")
+
+  df <- tidyr::expand_grid(
+    outcome = factor(c("a", "b", "c")),
+    group = factor(c("G1", "G2", "G3"))
+  ) |>
+    tidyr::uncount(5)
+
+  spec <- comp_spec(df) |>
+    set_roles(outcome = outcome, group = group) |>
+    set_design("independent") |>
+    set_outcome_type("binary") |>
+    set_engine("chisq_nxn") |>
+    test() |>
+    effects()
+
+  expected <- effectsize::cramers_v(table(df$group, df$outcome))
+
+  expect_s3_class(spec$effects, "tbl_df")
+  expect_equal(spec$effects$type, "cramers_v")
+  expect_equal(spec$effects$estimate, expected$Cramers_v[1], tolerance = 1e-6)
+})
+
+test_that("effects() computes oddsratio for mcnemar", {
+  skip_if_not_installed("effectsize")
+
+  df <- tibble::tibble(
+    id = rep(1:30, each = 2),
+    group = factor(rep(c("A", "B"), times = 30)),
+    outcome = factor(c(rep(c("yes", "no"), 15), rep(c("no", "yes"), 15)))
+  )
+
+  spec <- comp_spec(df) |>
+    set_roles(outcome = outcome, group = group, id = id) |>
+    set_design("paired") |>
+    set_outcome_type("binary") |>
+    set_engine("mcnemar_chi2") |>
+    test() |>
+    effects()
+
+  wide <- tidycomp:::.standardize_paired_categorical(
+    df,
+    "outcome",
+    "group",
+    "id"
+  )
+  expected <- effectsize::oddsratio(table(wide[[1]], wide[[2]]))
+
+  expect_s3_class(spec$effects, "tbl_df")
+  expect_equal(spec$effects$type, "oddsratio")
+  expect_equal(spec$effects$estimate, expected$Odds_ratio[1], tolerance = 1e-6)
+})
+
+test_that("effects() defaults to cohens_g for mcnemar_exact", {
+  skip_if_not_installed("effectsize")
+
+  df <- tibble::tibble(
+    id = rep(1:30, each = 2),
+    group = factor(rep(c("A", "B"), times = 30)),
+    outcome = factor(c(rep(c("yes", "no"), 20), rep(c("no", "yes"), 10)))
+  )
+
+  spec <- comp_spec(df) |>
+    set_roles(outcome = outcome, group = group, id = id) |>
+    set_design("paired") |>
+    set_outcome_type("binary") |>
+    set_engine("mcnemar_exact") |>
+    test() |>
+    effects()
+
+  wide <- tidycomp:::.standardize_paired_categorical(df, "outcome", "group", "id")
+  expected <- effectsize::cohens_g(table(wide[[1]], wide[[2]]))
+
+  expect_s3_class(spec$effects, "tbl_df")
+  expect_equal(spec$effects$type, "cohens_g")
+  expect_equal(spec$effects$estimate, expected[[1]], tolerance = 1e-6)
+})
+
+test_that("oddsratio for mcnemar_exact applies Haldane-Anscombe correction", {
+  skip_if_not_installed("effectsize")
+
+  df <- tibble::tibble(
+    id = rep(1:12, each = 2),
+    group = factor(rep(c("A", "B"), times = 12)),
+    outcome = factor(c(rep(c("no", "yes"), 11), "yes", "yes"))
+  )
+
+  spec <- comp_spec(df) |>
+    set_roles(outcome = outcome, group = group, id = id) |>
+    set_design("paired") |>
+    set_outcome_type("binary") |>
+    set_engine("mcnemar_exact") |>
+    set_effects(type = "oddsratio") |>
+    test()
+
+  expect_warning(spec <- effects(spec), "Haldane-Anscombe")
+
+  wide <- tidycomp:::.standardize_paired_categorical(df, "outcome", "group", "id")
+  tbl <- table(wide[[1]], wide[[2]])
+  if (tbl[1, 2] == 0) tbl[1, 2] <- tbl[1, 2] + 0.5
+  if (tbl[2, 1] == 0) tbl[2, 1] <- tbl[2, 1] + 0.5
+  expected <- effectsize::oddsratio(tbl)
+
+  expect_s3_class(spec$effects, "tbl_df")
+  expect_equal(spec$effects$type, "oddsratio")
+  expect_equal(spec$effects$estimate, expected[[1]], tolerance = 1e-6)
+})
+
+test_that("oddsratio correction can be disabled", {
+  skip_if_not_installed("effectsize")
+
+  df <- tibble::tibble(
+    id = rep(1:12, each = 2),
+    group = factor(rep(c("A", "B"), times = 12)),
+    outcome = factor(c(rep(c("no", "yes"), 11), "yes", "yes"))
+  )
+
+  spec <- comp_spec(df) |>
+    set_roles(outcome = outcome, group = group, id = id) |>
+    set_design("paired") |>
+    set_outcome_type("binary") |>
+    set_engine("mcnemar_exact") |>
+    set_effects(type = "oddsratio", correction = FALSE) |>
+    test()
+
+  expect_warning(spec <- effects(spec), "uncorrected odds ratio")
+
+  expect_s3_class(spec$effects, "tbl_df")
+  expect_equal(spec$effects$type, "oddsratio")
+  expect_true(is.infinite(spec$effects$estimate))
+})

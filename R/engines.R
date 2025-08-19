@@ -30,7 +30,13 @@
     kruskal_wallis = engine_kruskal_wallis,
     anova_repeated = engine_anova_repeated,
     anova_repeated_base = engine_anova_repeated_base,
-    friedman = engine_friedman
+    friedman = engine_friedman,
+    fisher_exact = engine_fisher_exact,
+    chisq_yates = engine_chisq_yates,
+    chisq_nxn = engine_chisq_nxn,
+    mcnemar_chi2 = engine_mcnemar_chi2,
+    mcnemar_chi2_cc = engine_mcnemar_chi2_cc,
+    mcnemar_exact = engine_mcnemar_exact
   )
 }
 
@@ -713,6 +719,273 @@ engine_friedman <- function(data, meta) {
     metric = NA_character_,
     notes = list(meta$diagnostics$notes %||% character())
   )
+  attr(res, "model") <- fit
+  res
+}
+
+#' Fisher's exact test engine (internal)
+#'
+#' @keywords internal
+#' @noRd
+engine_fisher_exact <- function(data, meta) {
+  df <- .standardize_two_group_factor(
+    data,
+    meta$roles$outcome,
+    meta$roles$group
+  )
+  tbl <- table(df$group, df$outcome)
+  fit <- stats::fisher.test(tbl)
+  res <- tibble::tibble(
+    test = "fisher",
+    method = fit$method,
+    engine = "fisher_exact",
+    n = sum(tbl),
+    statistic = NA_real_,
+    df = NA_real_,
+    p.value = unname(fit$p.value),
+    estimate = if (!is.null(fit$estimate)) unname(fit$estimate) else NA_real_,
+    conf.low = if (!is.null(fit$conf.int)) fit$conf.int[1] else NA_real_,
+    conf.high = if (!is.null(fit$conf.int)) fit$conf.int[2] else NA_real_,
+    metric = if (!is.null(fit$estimate)) "odds_ratio" else NA_character_,
+    notes = list(meta$diagnostics$notes %||% character())
+  )
+  attr(res, "model") <- fit
+  res
+}
+
+#' Chi-squared test with Yates continuity correction (2x2)
+#'
+#' @keywords internal
+#' @noRd
+engine_chisq_yates <- function(data, meta) {
+  df <- .standardize_two_group_factor(
+    data,
+    meta$roles$outcome,
+    meta$roles$group
+  )
+  tbl <- table(df$group, df$outcome)
+  fit <- stats::chisq.test(tbl, correct = TRUE)
+  res <- tibble::tibble(
+    test = "chi_squared",
+    method = fit$method,
+    engine = "chisq_yates",
+    n = sum(tbl),
+    statistic = unname(fit$statistic),
+    df = unname(fit$parameter),
+    p.value = unname(fit$p.value),
+    estimate = NA_real_,
+    conf.low = NA_real_,
+    conf.high = NA_real_,
+    metric = NA_character_,
+    notes = list(meta$diagnostics$notes %||% character())
+  )
+  attr(res, "model") <- fit
+  res
+}
+
+#' Chi-squared test for general contingency tables
+#'
+#' @keywords internal
+#' @noRd
+engine_chisq_nxn <- function(data, meta) {
+  df <- .standardize_two_group_factor(
+    data,
+    meta$roles$outcome,
+    meta$roles$group
+  )
+  tbl <- table(df$group, df$outcome)
+  fit <- stats::chisq.test(tbl, correct = FALSE)
+  res <- tibble::tibble(
+    test = "chi_squared",
+    method = fit$method,
+    engine = "chisq_nxn",
+    n = sum(tbl),
+    statistic = unname(fit$statistic),
+    df = unname(fit$parameter),
+    p.value = unname(fit$p.value),
+    estimate = NA_real_,
+    conf.low = NA_real_,
+    conf.high = NA_real_,
+    metric = NA_character_,
+    notes = list(meta$diagnostics$notes %||% character())
+  )
+  attr(res, "model") <- fit
+  res
+}
+
+#' McNemar engines for paired binary data
+#'
+#' @keywords internal
+#' @noRd
+engine_mcnemar_chi2 <- function(data, meta) {
+  wide <- .standardize_paired_categorical(
+    data,
+    meta$roles$outcome,
+    meta$roles$group,
+    meta$roles$id
+  )
+  tbl <- table(wide[[1]], wide[[2]])
+  b <- tbl[1, 2]
+  c <- tbl[2, 1]
+  discordant <- b + c
+  if (discordant < 10) {
+    cli::cli_warn(
+      "Discordant pairs < 10; chi-square approximation may be invalid."
+    )
+  }
+  fit <- stats::mcnemar.test(tbl, correct = FALSE)
+  args <- meta$engine$args %||% meta$engine_args %||% list()
+  conf.level <- args$conf.level %||% 0.95
+  if (b == 0 || c == 0) {
+    b <- b + 0.5
+    c <- c + 0.5
+  }
+  or <- b / c
+  z <- stats::qnorm(1 - (1 - conf.level) / 2)
+  se <- sqrt(1 / b + 1 / c)
+  ci <- exp(log(or) + c(-1, 1) * z * se)
+  res <- tibble::tibble(
+    test = "mcnemar",
+    method = fit$method,
+    engine = "mcnemar_chi2",
+    n = sum(tbl),
+    statistic = unname(fit$statistic),
+    df = unname(fit$parameter),
+    p.value = unname(fit$p.value),
+    estimate = or,
+    conf.low = ci[1],
+    conf.high = ci[2],
+    metric = "odds_ratio",
+    notes = list(meta$diagnostics$notes %||% character())
+  )
+  attr(res, "model") <- fit
+  res
+}
+
+#' @keywords internal
+#' @noRd
+engine_mcnemar_chi2_cc <- function(data, meta) {
+  wide <- .standardize_paired_categorical(
+    data,
+    meta$roles$outcome,
+    meta$roles$group,
+    meta$roles$id
+  )
+  tbl <- table(wide[[1]], wide[[2]])
+  b <- tbl[1, 2]
+  c <- tbl[2, 1]
+  discordant <- b + c
+  if (discordant < 10) {
+    cli::cli_warn(
+      "Discordant pairs < 10; chi-square approximation may be invalid."
+    )
+  }
+  fit <- stats::mcnemar.test(tbl, correct = TRUE)
+  args <- meta$engine$args %||% meta$engine_args %||% list()
+  conf.level <- args$conf.level %||% 0.95
+  if (b == 0 || c == 0) {
+    b <- b + 0.5
+    c <- c + 0.5
+  }
+  or <- b / c
+  z <- stats::qnorm(1 - (1 - conf.level) / 2)
+  se <- sqrt(1 / b + 1 / c)
+  ci <- exp(log(or) + c(-1, 1) * z * se)
+  res <- tibble::tibble(
+    test = "mcnemar",
+    method = fit$method,
+    engine = "mcnemar_chi2_cc",
+    n = sum(tbl),
+    statistic = unname(fit$statistic),
+    df = unname(fit$parameter),
+    p.value = unname(fit$p.value),
+    estimate = or,
+    conf.low = ci[1],
+    conf.high = ci[2],
+    metric = "odds_ratio",
+    notes = list(meta$diagnostics$notes %||% character())
+  )
+  attr(res, "model") <- fit
+  res
+}
+
+#' McNemar test (paired categorical, exact only)
+#'
+#' @keywords internal
+#' @noRd
+engine_mcnemar_exact <- function(data, meta) {
+  wide <- .standardize_paired_categorical(
+    data,
+    meta$roles$outcome,
+    meta$roles$group,
+    meta$roles$id
+  )
+  tbl <- table(wide[[1]], wide[[2]])
+
+  # Extract discordant pairs
+  b <- tbl[1, 2]
+  c <- tbl[2, 1]
+
+  # Engine arguments
+  args <- meta$engine$args %||% meta$engine_args %||% list()
+  alternative <- args$alternative %||% "two.sided"
+  conf_level <- args$conf.level %||% args$conf_level %||% 0.95
+  midp <- args$midp %||% FALSE
+  tsmethod <- args$tsmethod %||% "central"
+
+  notes <- meta$diagnostics$notes %||% character()
+
+  if (requireNamespace("exact2x2", quietly = TRUE)) {
+    fit <- exact2x2::exact2x2(
+      x = tbl,
+      paired = TRUE,
+      alternative = alternative,
+      tsmethod = tsmethod,
+      conf.level = conf_level,
+      midp = midp
+    )
+    estimate <- if (!is.null(fit$estimate)) unname(fit$estimate) else NA_real_
+    ci <- if (!is.null(fit$conf.int)) fit$conf.int else c(NA_real_, NA_real_)
+    method_label <- if (midp) {
+      "Exact McNemar test (mid-p)"
+    } else {
+      "Exact McNemar test"
+    }
+  } else {
+    # Fallback: continuity-corrected chi2
+    fit <- stats::mcnemar.test(tbl, correct = TRUE)
+    b0 <- if (b == 0) b + 0.5 else b
+    c0 <- if (c == 0) c + 0.5 else c
+    estimate <- b0 / c0
+    se <- sqrt(1 / b0 + 1 / c0)
+    z <- stats::qnorm(1 - (1 - conf_level) / 2)
+    ci <- exp(log(estimate) + c(-1, 1) * z * se)
+    notes <- c(
+      notes,
+      "exact2x2 not installed; used continuity-corrected chi-square."
+    )
+    method_label <- "McNemar's Chi-squared test with continuity correction"
+  }
+
+  res <- tibble::tibble(
+    test = "mcnemar",
+    method = method_label,
+    engine = "mcnemar_exact",
+    n = sum(tbl),
+    statistic = if (!is.null(fit$statistic)) {
+      unname(fit$statistic)
+    } else {
+      NA_real_
+    },
+    df = if (!is.null(fit$parameter)) unname(fit$parameter) else NA_real_,
+    p.value = unname(fit$p.value),
+    estimate = estimate,
+    conf.low = ci[1],
+    conf.high = ci[2],
+    metric = "odds_ratio",
+    notes = list(notes)
+  )
+
   attr(res, "model") <- fit
   res
 }
