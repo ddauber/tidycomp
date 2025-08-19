@@ -456,7 +456,7 @@
     chisq_nxn = "cramers_v",
     mcnemar_chi2 = "oddsratio",
     mcnemar_chi2_cc = "oddsratio",
-    mcnemar_exact = "oddsratio",
+    mcnemar_exact = "cohens_g",
     NULL
   )
 }

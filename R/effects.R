@@ -9,7 +9,7 @@
 #'   Supported values include: \code{"ges"}, \code{"pes"}, \code{"eta2"},
 #'   \code{"omega2"}, \code{"epsilon2"}, \code{"d"}, \code{"g"},
 #'   \code{"rank_biserial"}, \code{"kendalls_w"}, \code{"r2"},
-#'   \code{"phi"}, \code{"cramers_v"}, \code{"oddsratio"}.
+#'   \code{"phi"}, \code{"cramers_v"}, \code{"cohens_g"}, \code{"oddsratio"}.
 #' @param conf_level Confidence interval level (e.g., 0.90). Use \code{NULL}
 #'   to skip confidence intervals. Defaults to 0.95.
 #' @param compute Logical; if \code{TRUE}, \code{\link{test}()} will compute
@@ -45,7 +45,7 @@ set_effects <- function(x, type = "auto", conf_level = 0.95, compute = FALSE) {
 #'   an engine-/class-based default. Supported values: \code{"ges"}, \code{"pes"},
 #'   \code{"eta2"}, \code{"omega2"}, \code{"epsilon2"}, \code{"d"}, \code{"g"},
 #'   \code{"rank_biserial"}, \code{"kendalls_w"}, \code{"r2"}, \code{"phi"},
-#'   \code{"cramers_v"}, \code{"oddsratio"}.
+#'   \code{"cramers_v"}, \code{"cohens_g"}, \code{"oddsratio"}.
 #' @param conf_level Confidence level (e.g., \code{0.90}); \code{NULL} for none. Defaults to
 #'   \code{0.95}.
 #' @return If \code{x} is a spec, the updated spec with \code{$effects};
@@ -67,6 +67,7 @@ effects <- function(
     "r2",
     "phi",
     "cramers_v",
+    "cohens_g",
     "oddsratio"
   ),
   conf_level = 0.95
@@ -513,9 +514,9 @@ effects <- function(
     )
   }
 
-  # --- Contingency tables: phi, Cramer's V, odds ratio ---
+  # --- Contingency tables: phi, Cramer's V, Cohen's g, odds ratio ---
   if (
-    type %in% c("phi", "cramers_v", "oddsratio") &&
+    type %in% c("phi", "cramers_v", "cohens_g", "oddsratio") &&
       inherits(model, "htest") &&
       !is.null(parent_spec)
   ) {
@@ -561,7 +562,18 @@ effects <- function(
       }
       es <- effectsize::cramers_v(tbl, ci = conf_level)
       est <- es$Cramers_v %||% es$Cramers_V %||% es[[1]]
+    } else if (type == "cohens_g") {
+      es <- effectsize::cohens_g(tbl, ci = conf_level)
+      est <- es$Cohens_g %||% es$cohens_g %||% es[[1]]
     } else {
+      if (identical(parent_spec$engine, "mcnemar_exact")) {
+        b <- tbl[1, 2]
+        c <- tbl[2, 1]
+        if (b == 0 || c == 0) {
+          if (b == 0) tbl[1, 2] <- tbl[1, 2] + 0.5
+          if (c == 0) tbl[2, 1] <- tbl[2, 1] + 0.5
+        }
+      }
       es <- effectsize::oddsratio(tbl, ci = conf_level)
       est <- es$Odds_ratio %||% es$OR %||% es[[1]]
     }
@@ -575,7 +587,7 @@ effects <- function(
     ))
   }
   if (
-    type %in% c("phi", "cramers_v", "oddsratio") &&
+    type %in% c("phi", "cramers_v", "cohens_g", "oddsratio") &&
       inherits(model, "htest") &&
       is.null(parent_spec)
   ) {
