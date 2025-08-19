@@ -909,7 +909,7 @@ engine_mcnemar_chi2_cc <- function(data, meta) {
   res
 }
 
-#' McNemar test (paired categorical, exact or chi-squared)
+#' McNemar test (paired categorical, exact only)
 #'
 #' @keywords internal
 #' @noRd
@@ -922,75 +922,54 @@ engine_mcnemar_exact <- function(data, meta) {
   )
   tbl <- table(wide[[1]], wide[[2]])
 
-  # Collect engine arguments (consistent naming)
-  args <- meta$engine$args %||% meta$engine_args %||% list()
-  alternative <- args$alternative %||% "two.sided"
-  conf_level <- args$conf_level %||% 0.95
-  midp <- args$midp %||% FALSE
-  tsmethod <- args$tsmethod %||% "central"
-  method <- args$method %||% "auto"
-
-  # Discordant counts
+  # Extract discordant pairs
   b <- tbl[1, 2]
   c <- tbl[2, 1]
-  discordant_total <- b + c
 
-  # Decide which test to run
-  chosen <- switch(
-    method,
-    auto = if (discordant_total < 25) "exact" else "chi2",
-    chi2 = "chi2",
-    chi2_cc = "chi2_cc",
-    exact = "exact",
-    exact_midp = "exact_midp",
-    cli::cli_abort("Unknown method for engine_mcnemar_exact: {.val {method}}")
-  )
+  # Engine arguments
+  args <- meta$engine$args %||% meta$engine_args %||% list()
+  alternative <- args$alternative %||% "two.sided"
+  conf_level <- args$conf.level %||% args$conf_level %||% 0.95
+  midp <- args$midp %||% FALSE
+  tsmethod <- args$tsmethod %||% "central"
 
-  if (chosen %in% c("chi2", "chi2_cc")) {
-    fit <- stats::mcnemar.test(tbl, correct = identical(chosen, "chi2_cc"))
-    estimate <- {
-      # odds ratio with Haldane–Anscombe correction
-      b0 <- if (b == 0) b + 0.5 else b
-      c0 <- if (c == 0) c + 0.5 else c
-      b0 / c0
-    }
-    se <- sqrt(
-      1 / (ifelse(b == 0, b + 0.5, b)) + 1 / (ifelse(c == 0, c + 0.5, c))
+  notes <- meta$diagnostics$notes %||% character()
+
+  if (requireNamespace("exact2x2", quietly = TRUE)) {
+    fit <- exact2x2::exact2x2(
+      x = tbl,
+      paired = TRUE,
+      alternative = alternative,
+      tsmethod = tsmethod,
+      conf.level = conf_level,
+      midp = midp
     )
+    estimate <- if (!is.null(fit$estimate)) unname(fit$estimate) else NA_real_
+    ci <- if (!is.null(fit$conf.int)) fit$conf.int else c(NA_real_, NA_real_)
+    method_label <- if (midp) {
+      "Exact McNemar test (mid-p)"
+    } else {
+      "Exact McNemar test"
+    }
+  } else {
+    # Fallback: continuity-corrected chi2
+    fit <- stats::mcnemar.test(tbl, correct = TRUE)
+    b0 <- if (b == 0) b + 0.5 else b
+    c0 <- if (c == 0) c + 0.5 else c
+    estimate <- b0 / c0
+    se <- sqrt(1 / b0 + 1 / c0)
     z <- stats::qnorm(1 - (1 - conf_level) / 2)
     ci <- exp(log(estimate) + c(-1, 1) * z * se)
-    notes <- meta$diagnostics$notes %||% character()
-  } else {
-    if (requireNamespace("exact2x2", quietly = TRUE)) {
-      fit <- exact2x2::exact2x2(
-        x = tbl,
-        paired = TRUE,
-        alternative = alternative,
-        tsmethod = tsmethod,
-        conf.level = conf_level,
-        midp = identical(chosen, "exact_midp")
-      )
-      estimate <- if (!is.null(fit$estimate)) unname(fit$estimate) else NA_real_
-      ci <- if (!is.null(fit$conf.int)) fit$conf.int else c(NA_real_, NA_real_)
-      notes <- meta$diagnostics$notes %||% character()
-    } else {
-      fit <- stats::mcnemar.test(tbl, correct = TRUE)
-      b0 <- if (b == 0) b + 0.5 else b
-      c0 <- if (c == 0) c + 0.5 else c
-      estimate <- b0 / c0
-      se <- sqrt(1 / b0 + 1 / c0)
-      z <- stats::qnorm(1 - (1 - conf_level) / 2)
-      ci <- exp(log(estimate) + c(-1, 1) * z * se)
-      notes <- c(
-        meta$diagnostics$notes %||% character(),
-        "exact2x2 not installed; used continuity-corrected chi-square."
-      )
-    }
+    notes <- c(
+      notes,
+      "exact2x2 not installed; used continuity-corrected chi-square."
+    )
+    method_label <- "McNemar's Chi-squared test with continuity correction"
   }
 
   res <- tibble::tibble(
     test = "mcnemar",
-    method = fit$method,
+    method = method_label,
     engine = "mcnemar_exact",
     n = sum(tbl),
     statistic = if (!is.null(fit$statistic)) {

@@ -13,8 +13,8 @@ set_effects(x, type = "auto", conf_level = 0.95, compute = FALSE)
 engine's recommended default (e.g., "ges" for repeated-measures ANOVA).
 Supported values include: \code{"ges"}, \code{"pes"}, \code{"eta2"},
 \code{"omega2"}, \code{"epsilon2"}, \code{"d"}, \code{"g"},
-\code{"rank_biserial"}, \code{"kendalls_w"}, \code{"r2"}, \code{"phi"},
-\code{"cramers_v"}, \code{"oddsratio"}.}
+\code{"rank_biserial"}, \code{"kendalls_w"}, \code{"r2"},
+\code{"phi"}, \code{"cramers_v"}, \code{"oddsratio"}.}
 
 \item{conf_level}{Confidence interval level (e.g., 0.90). Use \code{NULL}
 to skip confidence intervals. Defaults to 0.95.}
