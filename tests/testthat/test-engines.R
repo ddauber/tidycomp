@@ -646,7 +646,7 @@ test_that("mcnemar_exact falls back when exact2x2 is missing", {
   expect_true(any(grepl("exact2x2 not installed", unlist(res$notes))))
 })
 
-test_that("mcnemar OR uses continuity correction when needed", {
+test_that("mcnemar OR uses continuity correction when exact2x2 is unavailable", {
   df <- tibble::tibble(
     id = rep(1:12, each = 2),
     group = factor(rep(c("A", "B"), times = 12)),
@@ -658,17 +658,20 @@ test_that("mcnemar OR uses continuity correction when needed", {
   )
 
   meta <- make_meta()
-  # Pass engine options the way engine_mcnemar_exact() expects them:
-  meta$engine_args <- list(
-    method = "chi2",
-    alternative = "two.sided",
-    tsmethod = "central",
-    conf_level = 0.95,
-    midp = FALSE
+
+  # Mock requireNamespace to simulate exact2x2 not being installed
+  testthat::local_mocked_bindings(
+    requireNamespace = function(pkg, ...) {
+      if (pkg == "exact2x2") {
+        return(FALSE)
+      }
+      base::requireNamespace(pkg, ...)
+    },
+    .env = environment(tidycomp:::engine_mcnemar_exact)
   )
 
   res <- tidycomp:::engine_mcnemar_exact(df, meta)
 
-  # b = 0, c = 11  -> Haldane–Anscombe continuity correction
-  expect_equal(res$estimate, 11 / 0.5)
+  # b = 0, c = 11 -> corrected OR = 11 / 0.5 = 22
+  expect_equal(res$estimate, 22)
 })

@@ -1151,7 +1151,11 @@ test_that("effects() computes phi for fisher_exact", {
 
   expect_s3_class(spec$effects, "tbl_df")
   expect_equal(spec$effects$type, "phi")
-  expect_equal(spec$effects$estimate, expected$Phi[1], tolerance = 1e-6)
+  expect_equal(
+    spec$effects$estimate,
+    expected$phi_adjusted[1],
+    tolerance = 1e-6
+  )
 })
 
 test_that("effects() computes cramers_v for chisq_nxn", {
@@ -1195,7 +1199,12 @@ test_that("effects() computes oddsratio for mcnemar", {
     test() |>
     effects()
 
-  wide <- tidycomp:::.standardize_paired_categorical(df, "outcome", "group", "id")
+  wide <- tidycomp:::.standardize_paired_categorical(
+    df,
+    "outcome",
+    "group",
+    "id"
+  )
   expected <- effectsize::oddsratio(table(wide[[1]], wide[[2]]))
 
   expect_s3_class(spec$effects, "tbl_df")
