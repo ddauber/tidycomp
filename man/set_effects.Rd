@@ -4,8 +4,13 @@
 \alias{set_effects}
 \title{Set effect size options}
 \usage{
-set_effects(x, type = "auto", conf_level = 0.95, correction = TRUE,
-  compute = FALSE)
+set_effects(
+  x,
+  type = "auto",
+  conf_level = 0.95,
+  correction = TRUE,
+  compute = FALSE
+)
 }
 \arguments{
 \item{x}{A model specification object created with \code{\link{comp_spec}()}.}
@@ -15,13 +20,13 @@ engine's recommended default (e.g., "ges" for repeated-measures ANOVA).
 Supported values include: \code{"ges"}, \code{"pes"}, \code{"eta2"},
 \code{"omega2"}, \code{"epsilon2"}, \code{"d"}, \code{"g"},
 \code{"rank_biserial"}, \code{"kendalls_w"}, \code{"r2"},
-\code{"phi"}, \code{"cramers_v"}, \code{"oddsratio"}.}
+\code{"phi"}, \code{"cramers_v"}, \code{"cohens_g"}, \code{"oddsratio"}.}
 
 \item{conf_level}{Confidence interval level (e.g., 0.90). Use \code{NULL}
 to skip confidence intervals. Defaults to 0.95.}
 
-\item{correction}{Logical; apply a continuity correction when computing odds
-ratios for McNemar tests with zero discordant cells. Defaults to
+\item{correction}{Logical; apply a continuity correction when computing
+odds ratios for McNemar tests with zero discordant cells. Defaults to
 \code{TRUE}.}
 
 \item{compute}{Logical; if \code{TRUE}, \code{\link{test}()} will compute
