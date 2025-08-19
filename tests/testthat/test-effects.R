@@ -1229,7 +1229,12 @@ test_that("effects() defaults to cohens_g for mcnemar_exact", {
     test() |>
     effects()
 
-  wide <- tidycomp:::.standardize_paired_categorical(df, "outcome", "group", "id")
+  wide <- tidycomp:::.standardize_paired_categorical(
+    df,
+    "outcome",
+    "group",
+    "id"
+  )
   expected <- effectsize::cohens_g(table(wide[[1]], wide[[2]]))
 
   expect_s3_class(spec$effects, "tbl_df")
@@ -1256,10 +1261,19 @@ test_that("oddsratio for mcnemar_exact applies Haldane-Anscombe correction", {
 
   expect_warning(spec <- effects(spec), "Haldane-Anscombe")
 
-  wide <- tidycomp:::.standardize_paired_categorical(df, "outcome", "group", "id")
+  wide <- tidycomp:::.standardize_paired_categorical(
+    df,
+    "outcome",
+    "group",
+    "id"
+  )
   tbl <- table(wide[[1]], wide[[2]])
-  if (tbl[1, 2] == 0) tbl[1, 2] <- tbl[1, 2] + 0.5
-  if (tbl[2, 1] == 0) tbl[2, 1] <- tbl[2, 1] + 0.5
+  if (tbl[1, 2] == 0) {
+    tbl[1, 2] <- tbl[1, 2] + 0.5
+  }
+  if (tbl[2, 1] == 0) {
+    tbl[2, 1] <- tbl[2, 1] + 0.5
+  }
   expected <- effectsize::oddsratio(tbl)
 
   expect_s3_class(spec$effects, "tbl_df")
@@ -1273,7 +1287,19 @@ test_that("oddsratio correction can be disabled", {
   df <- tibble::tibble(
     id = rep(1:12, each = 2),
     group = factor(rep(c("A", "B"), times = 12)),
-    outcome = factor(c(rep(c("no", "yes"), 11), "yes", "yes"))
+    outcome = factor(
+      c(
+        # 10 discordant A=no, B=yes pairs
+        rep(c("no", "yes"), 10),
+        # 1 concordant A=no, B=no pair
+        "no",
+        "no",
+        # 1 concordant A=yes, B=yes pair
+        "yes",
+        "yes"
+      ),
+      levels = c("no", "yes")
+    )
   )
 
   spec <- comp_spec(df) |>
