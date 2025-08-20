@@ -112,14 +112,14 @@ post_hoc <- function(x, method = "auto", alpha = 0.05, force = FALSE) {
       roles$outcome,
       roles$group,
       x$design,
-      "bonferroni"
+      "holm"
     ),
     `pairwise.wilcox.test` = .ph_pairwise_wilcox(
       data,
       roles$outcome,
       roles$group,
       x$design,
-      "bonferroni"
+      "holm"
     ),
     `pairwise.prop` = .ph_pairwise_prop(
       data,
@@ -285,7 +285,11 @@ post_hoc <- function(x, method = "auto", alpha = 0.05, force = FALSE) {
   }
   g <- data[[group]]
   o <- data[[outcome]]
-  fit <- mutoss::regwq(o, g)
+  fit <- mutoss::regwq(
+    o ~ g,
+    data = data,
+    alpha = 0.05,
+  )
   mat <- fit$p.value
   .matrix_to_tibble(mat, "regwq")
 }
