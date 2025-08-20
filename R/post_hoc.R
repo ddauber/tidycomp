@@ -62,8 +62,13 @@ set_post_hoc <- function(
 #' @return If `x` is a spec, the updated spec with `$post_hoc`; otherwise a
 #'   tibble of pairwise contrasts.
 #' @export
-post_hoc <- function(x, method = "auto", alpha = 0.05, force = FALSE,
-                     conf_level = 0.95) {
+post_hoc <- function(
+  x,
+  method = "auto",
+  alpha = 0.05,
+  force = FALSE,
+  conf_level = 0.95
+) {
   is_spec <- inherits(x, "comp_spec")
   if (!is_spec) {
     cli::cli_abort("`post_hoc()` currently works on a `comp_spec`.")
@@ -108,7 +113,12 @@ post_hoc <- function(x, method = "auto", alpha = 0.05, force = FALSE,
 
   res <- switch(
     method,
-    tukey = .ph_tukey(data, roles$outcome, roles$group, conf_level),
+    tukey = .ph_tukey(
+      data,
+      roles$outcome,
+      roles$group,
+      conf_level
+    ),
     bonferroni = .ph_pairwise_t(
       data,
       roles$outcome,
@@ -173,7 +183,7 @@ post_hoc <- function(x, method = "auto", alpha = 0.05, force = FALSE,
 }
 
 # choose default method based on engine/outcome
- .default_post_hoc_method <- function(engine, design, outcome_type) {
+.default_post_hoc_method <- function(engine, design, outcome_type) {
   if (outcome_type == "binary") {
     return("pairwise_prop_test")
   }
@@ -225,7 +235,14 @@ post_hoc <- function(x, method = "auto", alpha = 0.05, force = FALSE,
   res
 }
 
-.ph_pairwise_wilcox <- function(data, outcome, group, design, p.adjust, conf_level) {
+.ph_pairwise_wilcox <- function(
+  data,
+  outcome,
+  group,
+  design,
+  p.adjust,
+  conf_level
+) {
   g <- factor(data[[group]])
   o <- data[[outcome]]
   combs <- utils::combn(levels(g), 2, simplify = FALSE)
@@ -303,7 +320,11 @@ post_hoc <- function(x, method = "auto", alpha = 0.05, force = FALSE,
   o <- data[[outcome]]
   combs <- utils::combn(levels(g), 2, simplify = FALSE)
   raw <- purrr::map_dfr(combs, function(pair) {
-    tt <- stats::t.test(o[g == pair[1]], o[g == pair[2]], conf.level = conf_level)
+    tt <- stats::t.test(
+      o[g == pair[1]],
+      o[g == pair[2]],
+      conf.level = conf_level
+    )
     tibble::tibble(group1 = pair[1], group2 = pair[2], p.value = tt$p.value)
   })
   res <- dplyr::left_join(tuk, raw, by = c("group1", "group2"))

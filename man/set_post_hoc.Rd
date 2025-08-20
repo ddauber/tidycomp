@@ -19,7 +19,8 @@ set_post_hoc(
 \item{method}{Post-hoc method to use. Use "auto" to allow
 \code{\link[=post_hoc]{post_hoc()}} to choose a sensible default based on the engine and data.
 Possible values include "tukey", "bonferroni", "holm",
-"pairwise_wilcox_test", "pairwise_prop_test", "games_howell", and "dunn".}
+"pairwise_wilcox_test", "pairwise_prop_test", "games_howell",
+and "dunn".}
 
 \item{alpha}{Significance level used to gate computation. If the
 omnibus p-value is greater than or equal to \code{alpha}, post-hoc tests are
