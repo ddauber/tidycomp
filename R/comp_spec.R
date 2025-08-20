@@ -61,6 +61,8 @@ comp_spec <- function(data) {
       effects = NULL,
       effects_args = list(),
       effects_hint = NULL,
+      post_hoc = NULL,
+      post_hoc_args = list(),
       engine_args = list()
     ),
     class = "comp_spec"

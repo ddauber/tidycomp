@@ -206,6 +206,10 @@ test <- function(spec) {
     )
   )
 
+  attr(res, "data") <- data
+  attr(res, "roles") <- spec$roles
+  attr(res, "design") <- spec$design
+  attr(res, "outcome_type") <- spec$outcome_type
   class(res) <- c("comp_result", class(res))
   attr(res, "engine_hint") <- spec$effects_hint
   spec$fitted <- res
@@ -213,6 +217,10 @@ test <- function(spec) {
 
   if (isTRUE(spec$effects_args$compute)) {
     spec <- effects(spec)
+  }
+
+  if (isTRUE(spec$post_hoc_args$compute)) {
+    spec <- post_hoc(spec)
   }
 
   spec
