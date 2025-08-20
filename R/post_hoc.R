@@ -6,9 +6,13 @@
 #' @param x A model specification created with [comp_spec()].
 #' @param method Post-hoc method to use. Use "auto" to allow
 #'   [post_hoc()] to choose a sensible default based on the engine and data.
-#'   Possible values include "tukey", "bonferroni", "holm",
+#'   Supported values include: "tukey", "pairwise_t_test",
 #'   "pairwise_wilcox_test", "pairwise_prop_test", "games_howell",
 #'   and "dunn".
+#' @param adjust Multiple-comparison adjustment to apply. Use "auto" to
+#'   select a method-specific default (e.g., "holm" for pairwise *t*-tests,
+#'   "bonferroni" for proportion tests). Set to any valid
+#'   `stats::p.adjust` method.
 #' @param alpha Significance level used to gate computation. If the
 #'   omnibus p-value is greater than or equal to `alpha`, post-hoc tests are
 #'   skipped unless `force` is `TRUE`.
@@ -23,6 +27,7 @@
 set_post_hoc <- function(
   x,
   method = "auto",
+  adjust = "auto",
   alpha = 0.05,
   force = FALSE,
   compute = FALSE,
@@ -32,6 +37,7 @@ set_post_hoc <- function(
     x$post_hoc_args %||% list(),
     list(
       method = method,
+      adjust = adjust,
       alpha = alpha,
       force = force,
       compute = compute,
@@ -55,6 +61,8 @@ set_post_hoc <- function(
 #'   `post_hoc()` will call [test()] automatically.
 #' @param method Post-hoc method (see [set_post_hoc()]). Use "auto" to pick a
 #'   default based on the engine and data.
+#' @param adjust Multiple-comparison adjustment. Use "auto" for a
+#'   method-specific default.
 #' @param alpha Significance level used for gating (default 0.05).
 #' @param force Logical; compute even if omnibus test is not significant.
 #' @param conf_level Confidence interval level (default 0.95).
@@ -64,11 +72,21 @@ set_post_hoc <- function(
 #' @export
 post_hoc <- function(
   x,
-  method = "auto",
+  method = c(
+    "auto",
+    "tukey",
+    "pairwise_t_test",
+    "pairwise_wilcox_test",
+    "pairwise_prop_test",
+    "games_howell",
+    "dunn"
+  ),
+  adjust = "auto",
   alpha = 0.05,
   force = FALSE,
   conf_level = 0.95
 ) {
+  method <- match.arg(method)
   is_spec <- inherits(x, "comp_spec")
   if (!is_spec) {
     cli::cli_abort("`post_hoc()` currently works on a `comp_spec`.")
@@ -78,11 +96,12 @@ post_hoc <- function(
   }
 
   user <- x$post_hoc_args %||% list()
-  method <- if (!identical(method, "auto")) {
-    method
-  } else {
-    (user$method %||% "auto")
-  }
+  method_arg <- user$method %||% NULL
+  adjust_arg <- user$adjust %||% NULL
+
+  final_method <- if (!identical(method, "auto")) method else (method_arg %||% "auto")
+  final_adjust <- if (!identical(adjust, "auto")) adjust else (adjust_arg %||% "auto")
+
   alpha <- if (!missing(alpha)) alpha else (user$alpha %||% 0.05)
   force <- if (!missing(force)) force else (user$force %||% FALSE)
   conf_level <- if (!missing(conf_level)) {
@@ -91,12 +110,18 @@ post_hoc <- function(
     user$conf_level %||% 0.95
   }
 
-  if (identical(method, "auto")) {
-    method <- .default_post_hoc_method(
-      engine = x$fitted$engine,
-      design = x$design,
-      outcome_type = x$outcome_type
-    )
+  defaults <- .default_post_hoc_method(
+    spec_or_fit = x,
+    fitted = x$fitted,
+    design = x$design,
+    outcome_type = x$outcome_type
+  )
+
+  if (identical(final_method, "auto")) {
+    final_method <- defaults
+  }
+  if (identical(final_adjust, "auto")) {
+    final_adjust <- .method_default_adjust(final_method)
   }
 
   p_omni <- x$fitted$p.value %||% NA_real_
@@ -112,27 +137,11 @@ post_hoc <- function(
   roles <- x$roles
 
   res <- switch(
-    method,
+    final_method,
     tukey = .ph_tukey(
       data,
       roles$outcome,
       roles$group,
-      conf_level
-    ),
-    bonferroni = .ph_pairwise_t(
-      data,
-      roles$outcome,
-      roles$group,
-      x$design,
-      "bonferroni",
-      conf_level
-    ),
-    holm = .ph_pairwise_t(
-      data,
-      roles$outcome,
-      roles$group,
-      x$design,
-      "holm",
       conf_level
     ),
     pairwise_t_test = .ph_pairwise_t(
@@ -140,7 +149,7 @@ post_hoc <- function(
       roles$outcome,
       roles$group,
       x$design,
-      "bonferroni",
+      final_adjust,
       conf_level
     ),
     pairwise_wilcox_test = .ph_pairwise_wilcox(
@@ -148,14 +157,14 @@ post_hoc <- function(
       roles$outcome,
       roles$group,
       x$design,
-      "holm",
+      final_adjust,
       conf_level
     ),
     pairwise_prop_test = .ph_pairwise_prop(
       data,
       roles$outcome,
       roles$group,
-      "bonferroni",
+      final_adjust,
       conf_level
     ),
     games_howell = .ph_games_howell(
@@ -168,40 +177,67 @@ post_hoc <- function(
       data,
       roles$outcome,
       roles$group,
-      "holm",
+      final_adjust,
       conf_level
     ),
-    cli::cli_abort("Unknown post-hoc method `{method}`.")
+    cli::cli_abort("Unknown post-hoc method `{final_method}`.")
   )
 
   x$post_hoc_args <- utils::modifyList(
     user,
-    list(method = method, alpha = alpha, force = force, conf_level = conf_level)
+    list(
+      method = final_method,
+      adjust = final_adjust,
+      alpha = alpha,
+      force = force,
+      conf_level = conf_level
+    )
   )
   x$post_hoc <- res
   x
 }
 
-# choose default method based on engine/outcome
-.default_post_hoc_method <- function(engine, design, outcome_type) {
+
+# choose default method: engine hint first, then outcome type
+.default_post_hoc_method <- function(spec_or_fit, fitted, design, outcome_type) {
+  hint <- if (inherits(spec_or_fit, "comp_spec")) {
+    spec_or_fit$post_hoc_hint
+  } else {
+    attr(fitted, "post_hoc_hint", exact = TRUE)
+  }
+  if (!is.null(hint)) {
+    if (identical(hint, "games_howell") && !requireNamespace("rstatix", quietly = TRUE)) {
+      return("tukey")
+    }
+    if (identical(hint, "dunn") && !requireNamespace("rstatix", quietly = TRUE)) {
+      return("pairwise_wilcox_test")
+    }
+    return(hint)
+  }
   if (outcome_type == "binary") {
     return("pairwise_prop_test")
-  }
-  if (engine == "kruskal_wallis") {
-    if (requireNamespace("rstatix", quietly = TRUE)) {
-      return("dunn")
-    }
-    return("pairwise_wilcox_test")
-  }
-  if (
-    engine == "anova_oneway_welch" &&
-      requireNamespace("rstatix", quietly = TRUE)
-  ) {
-    return("games_howell")
   }
   "tukey"
 }
 
+.method_default_adjust <- function(method) {
+  switch(
+    method,
+    pairwise_t_test = "holm",
+    pairwise_wilcox_test = "holm",
+    pairwise_prop_test = "bonferroni",
+    dunn = "holm",
+    tukey = "tukey",
+    games_howell = "games_howell",
+    NULL
+  )
+}
+
+#' Pairwise t-tests (internal)
+#'
+#' Used when `method = "pairwise_t_test"` to compute pairwise *t*-tests with
+#' the specified p-value adjustment.
+#' @keywords internal
 .ph_pairwise_t <- function(data, outcome, group, design, p.adjust, conf_level) {
   g <- factor(data[[group]])
   o <- data[[outcome]]
@@ -235,6 +271,10 @@ post_hoc <- function(
   res
 }
 
+#' Pairwise Wilcoxon tests (internal)
+#'
+#' Computes Wilcoxon rank-sum or signed-rank tests for all group pairs.
+#' @keywords internal
 .ph_pairwise_wilcox <- function(
   data,
   outcome,
@@ -272,6 +312,10 @@ post_hoc <- function(
   res
 }
 
+#' Pairwise proportion tests (internal)
+#'
+#' Applies `stats::prop.test()` to all group pairs for binary outcomes.
+#' @keywords internal
 .ph_pairwise_prop <- function(data, outcome, group, p.adjust, conf_level) {
   g <- factor(data[[group]])
   o <- data[[outcome]]
@@ -297,6 +341,10 @@ post_hoc <- function(
   res
 }
 
+#' Tukey HSD post-hoc comparisons (internal)
+#'
+#' Uses `stats::TukeyHSD()` after fitting an ANOVA model.
+#' @keywords internal
 .ph_tukey <- function(data, outcome, group, conf_level) {
   f <- stats::as.formula(paste(outcome, "~", group))
   fit <- stats::aov(f, data = data)
@@ -333,6 +381,10 @@ post_hoc <- function(
   res
 }
 
+#' Games-Howell post-hoc comparisons (internal)
+#'
+#' Requires the `rstatix` package.
+#' @keywords internal
 .ph_games_howell <- function(data, outcome, group, conf_level) {
   if (!requireNamespace("rstatix", quietly = TRUE)) {
     cli::cli_abort("Package 'rstatix' is required for games_howell().")
@@ -352,6 +404,10 @@ post_hoc <- function(
   )
 }
 
+#' Dunn's test post-hoc comparisons (internal)
+#'
+#' Requires the `rstatix` package.
+#' @keywords internal
 .ph_dunn <- function(data, outcome, group, p.adjust, conf_level) {
   if (!requireNamespace("rstatix", quietly = TRUE)) {
     cli::cli_abort("Package 'rstatix' is required for dunn_test().")

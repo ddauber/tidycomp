@@ -190,6 +190,7 @@ test <- function(spec) {
 
   spec$engine <- engine
   spec$effects_hint <- .engine_effect_hint(engine)
+  spec$post_hoc_hint <- .engine_post_hoc_hint(engine)
 
   eng_fun <- .tidycomp_engines()[[engine]]
   if (is.null(eng_fun)) {
@@ -212,6 +213,7 @@ test <- function(spec) {
   attr(res, "outcome_type") <- spec$outcome_type
   class(res) <- c("comp_result", class(res))
   attr(res, "engine_hint") <- spec$effects_hint
+  attr(res, "post_hoc_hint") <- spec$post_hoc_hint
   spec$fitted <- res
   cli::cli_inform("Engine run: {engine}.")
 
