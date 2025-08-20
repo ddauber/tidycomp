@@ -1,5 +1,18 @@
 # tidycomp 0.5.0
 
+-   `post_hoc` and `set_post_hoc()` adds post-hoc tests for multiple group comparisons:
+
+    -   `tukey`,
+    -   `pairwise_t_test`,
+    -   `pairwise_wilcox_test`,
+    -   `pairwise_prop_test`,
+    -   `games_howell`,
+    -   `dunn`
+
+-   `games_howell` and `dunn` are available if `rstatix` is installed.
+
+-   Effect sizes are added for post-hoc tests and can be computed with `effects()` and adjusted to taste using `set_effects()`.
+
 # tidycomp 0.4.0
 
 -   Added 6 new engines for categorical comparisons:
