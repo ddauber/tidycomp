@@ -3,8 +3,7 @@ Title: Tidyverse-Style Functions for Statistical Comparisons and Diagnostics
 Version: 0.4.0
 Authors@R: 
     person("Daniel", "Dauber", , "daniel.dauber.io@gmail.com", role = c("aut", "cre", "cph"), comment = c(ORCID = "0000-0003-4324-4796"))
-Description: Tidy, auditable pipelines for group comparisons. Tidycomp streamlines two-sample, paired, one-way, and repeated-measures designs, delivering standardised results and effect sizes. With flexible outlier trimming
-and clear, friendly messaging, it makes diagnostics and inference transparent, composable, and seamless within a tidymodels-like ecosystem.
+Description: Tidy, auditable pipelines for group comparisons. Tidycomp streamlines two-sample, paired, one-way, and repeated-measures designs, delivering standardised results and effect sizes. With flexible outlier trimming and clear, friendly messaging, it makes diagnostics and inference transparent, composable, and seamless within a tidymodels-like ecosystem.
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)

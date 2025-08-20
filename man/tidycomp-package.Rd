@@ -6,7 +6,7 @@
 \alias{tidycomp-package}
 \title{tidycomp: Tidyverse-Style Functions for Statistical Comparisons and Diagnostics}
 \description{
-Provides a consistent, tidyverse-friendly interface for statistical group comparisons and diagnostic checks. Includes wrappers for common tests (parametric, non-parametric, and robust), automatic effect size computation via the 'effectsize' package, and data diagnostics for outliers, missing data, and potential bias sources. Designed to integrate seamlessly with the 'tidymodels' ecosystem and follow tidyverse style conventions.
+Tidy, auditable pipelines for group comparisons. Tidycomp streamlines two-sample, paired, one-way, and repeated-measures designs, delivering standardised results and effect sizes. With flexible outlier trimming and clear, friendly messaging, it makes diagnostics and inference transparent, composable, and seamless within a tidymodels-like ecosystem.
 }
 \author{
 \strong{Maintainer}: Daniel Dauber \email{daniel.dauber.io@gmail.com} (\href{https://orcid.org/0000-0003-4324-4796}{ORCID}) [copyright holder]

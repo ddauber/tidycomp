@@ -18,8 +18,13 @@
 #'
 #' @return The updated model specification.
 #' @export
-set_post_hoc <- function(x, method = "auto", alpha = 0.05, force = FALSE,
-                         compute = FALSE) {
+set_post_hoc <- function(
+  x,
+  method = "auto",
+  alpha = 0.05,
+  force = FALSE,
+  compute = FALSE
+) {
   x$post_hoc_args <- utils::modifyList(
     x$post_hoc_args %||% list(),
     list(method = method, alpha = alpha, force = force, compute = compute)
@@ -57,7 +62,11 @@ post_hoc <- function(x, method = "auto", alpha = 0.05, force = FALSE) {
   }
 
   user <- x$post_hoc_args %||% list()
-  method <- if (!identical(method, "auto")) method else (user$method %||% "auto")
+  method <- if (!identical(method, "auto")) {
+    method
+  } else {
+    (user$method %||% "auto")
+  }
   alpha <- if (!missing(alpha)) alpha else (user$alpha %||% 0.05)
   force <- if (!missing(force)) force else (user$force %||% FALSE)
 
@@ -84,15 +93,62 @@ post_hoc <- function(x, method = "auto", alpha = 0.05, force = FALSE) {
   res <- switch(
     method,
     tukey = .ph_tukey(data, roles$outcome, roles$group),
-    bonferroni = .ph_pairwise_t(data, roles$outcome, roles$group, x$design, "bonferroni"),
-    `pairwise.t.test` = .ph_pairwise_t(data, roles$outcome, roles$group, x$design, "bonferroni"),
-    `pairwise.wilcox` = .ph_pairwise_wilcox(data, roles$outcome, roles$group, x$design, "bonferroni"),
-    `pairwise.wilcox.test` = .ph_pairwise_wilcox(data, roles$outcome, roles$group, x$design, "bonferroni"),
-    `pairwise.prop` = .ph_pairwise_prop(data, roles$outcome, roles$group, "bonferroni"),
-    `pairwise.prop.test` = .ph_pairwise_prop(data, roles$outcome, roles$group, "bonferroni"),
-    games_howell = .ph_games_howell(data, roles$outcome, roles$group),
-    dunn = .ph_dunn(data, roles$outcome, roles$group, "bonferroni"),
-    regwq = .ph_regwq(data, roles$outcome, roles$group),
+    bonferroni = .ph_pairwise_t(
+      data,
+      roles$outcome,
+      roles$group,
+      x$design,
+      "bonferroni"
+    ),
+    `pairwise.t.test` = .ph_pairwise_t(
+      data,
+      roles$outcome,
+      roles$group,
+      x$design,
+      "bonferroni"
+    ),
+    `pairwise.wilcox` = .ph_pairwise_wilcox(
+      data,
+      roles$outcome,
+      roles$group,
+      x$design,
+      "bonferroni"
+    ),
+    `pairwise.wilcox.test` = .ph_pairwise_wilcox(
+      data,
+      roles$outcome,
+      roles$group,
+      x$design,
+      "bonferroni"
+    ),
+    `pairwise.prop` = .ph_pairwise_prop(
+      data,
+      roles$outcome,
+      roles$group,
+      "bonferroni"
+    ),
+    `pairwise.prop.test` = .ph_pairwise_prop(
+      data,
+      roles$outcome,
+      roles$group,
+      "bonferroni"
+    ),
+    games_howell = .ph_games_howell(
+      data,
+      roles$outcome,
+      roles$group
+    ),
+    dunn = .ph_dunn(
+      data,
+      roles$outcome,
+      roles$group,
+      "holm"
+    ),
+    regwq = .ph_regwq(
+      data,
+      roles$outcome,
+      roles$group
+    ),
     cli::cli_abort("Unknown post-hoc method `{method}`.")
   )
 
@@ -115,7 +171,10 @@ post_hoc <- function(x, method = "auto", alpha = 0.05, force = FALSE) {
     }
     return("pairwise.wilcox.test")
   }
-  if (engine == "anova_oneway_welch" && requireNamespace("rstatix", quietly = TRUE)) {
+  if (
+    engine == "anova_oneway_welch" &&
+      requireNamespace("rstatix", quietly = TRUE)
+  ) {
     return("games_howell")
   }
   "bonferroni"
@@ -128,23 +187,35 @@ post_hoc <- function(x, method = "auto", alpha = 0.05, force = FALSE) {
   if (nrow(df) == 0) {
     return(tibble::tibble())
   }
-  tibble::tibble(group1 = as.character(df$Var1), group2 = as.character(df$Var2),
-                 p.value = as.numeric(df$Freq), method = method)
+  tibble::tibble(
+    group1 = as.character(df$Var1),
+    group2 = as.character(df$Var2),
+    p.value = as.numeric(df$Freq),
+    method = method
+  )
 }
 
 .ph_pairwise_t <- function(data, outcome, group, design, p.adjust) {
   g <- data[[group]]
   o <- data[[outcome]]
-  fit <- stats::pairwise.t.test(o, g, p.adjust.method = p.adjust,
-                                paired = design == "paired")
+  fit <- stats::pairwise.t.test(
+    o,
+    g,
+    p.adjust.method = p.adjust,
+    paired = design == "paired"
+  )
   .matrix_to_tibble(fit$p.value, "pairwise.t.test")
 }
 
 .ph_pairwise_wilcox <- function(data, outcome, group, design, p.adjust) {
   g <- data[[group]]
   o <- data[[outcome]]
-  fit <- stats::pairwise.wilcox.test(o, g, p.adjust.method = p.adjust,
-                                     paired = design == "paired")
+  fit <- stats::pairwise.wilcox.test(
+    o,
+    g,
+    p.adjust.method = p.adjust,
+    paired = design == "paired"
+  )
   .matrix_to_tibble(fit$p.value, "pairwise.wilcox.test")
 }
 
@@ -166,9 +237,18 @@ post_hoc <- function(x, method = "auto", alpha = 0.05, force = FALSE) {
   fit <- stats::aov(f, data = data)
   ph <- stats::TukeyHSD(fit)
   df <- tibble::as_tibble(ph[[1]], rownames = "comparison")
-  comps <- tidyr::separate(df, comparison, into = c("group1", "group2"), sep = "-")
-  tibble::tibble(group1 = comps$group1, group2 = comps$group2,
-                 p.value = df$`p adj`, method = "TukeyHSD")
+  comps <- tidyr::separate(
+    df,
+    comparison,
+    into = c("group1", "group2"),
+    sep = "-"
+  )
+  tibble::tibble(
+    group1 = comps$group1,
+    group2 = comps$group2,
+    p.value = df$`p adj`,
+    method = "TukeyHSD"
+  )
 }
 
 .ph_games_howell <- function(data, outcome, group) {
@@ -177,8 +257,12 @@ post_hoc <- function(x, method = "auto", alpha = 0.05, force = FALSE) {
   }
   f <- stats::as.formula(paste(outcome, "~", group))
   res <- rstatix::games_howell_test(data, f)
-  tibble::tibble(group1 = res$group1, group2 = res$group2,
-                 p.value = res$p.adj, method = "games_howell_test")
+  tibble::tibble(
+    group1 = res$group1,
+    group2 = res$group2,
+    p.value = res$p.adj,
+    method = "games_howell_test"
+  )
 }
 
 .ph_dunn <- function(data, outcome, group, p.adjust) {
@@ -187,8 +271,12 @@ post_hoc <- function(x, method = "auto", alpha = 0.05, force = FALSE) {
   }
   f <- stats::as.formula(paste(outcome, "~", group))
   res <- rstatix::dunn_test(data, f, p.adjust.method = p.adjust)
-  tibble::tibble(group1 = res$group1, group2 = res$group2,
-                 p.value = res$p.adj, method = "dunn_test")
+  tibble::tibble(
+    group1 = res$group1,
+    group2 = res$group2,
+    p.value = res$p.adj,
+    method = "dunn_test"
+  )
 }
 
 .ph_regwq <- function(data, outcome, group) {
