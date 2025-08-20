@@ -4,15 +4,22 @@
 \alias{set_post_hoc}
 \title{Set post-hoc options}
 \usage{
-set_post_hoc(x, method = "auto", alpha = 0.05, force = FALSE, compute = FALSE)
+set_post_hoc(
+  x,
+  method = "auto",
+  alpha = 0.05,
+  force = FALSE,
+  compute = FALSE,
+  conf_level = 0.95
+)
 }
 \arguments{
 \item{x}{A model specification created with \code{\link[=comp_spec]{comp_spec()}}.}
 
 \item{method}{Post-hoc method to use. Use "auto" to allow
 \code{\link[=post_hoc]{post_hoc()}} to choose a sensible default based on the engine and data.
-Possible values include "tukey", "bonferroni", "pairwise.wilcox",
-"pairwise.prop", "games_howell", "dunn", and "regwq".}
+Possible values include "tukey", "bonferroni", "holm",
+"pairwise_wilcox_test", "pairwise_prop_test", "games_howell", and "dunn".}
 
 \item{alpha}{Significance level used to gate computation. If the
 omnibus p-value is greater than or equal to \code{alpha}, post-hoc tests are
@@ -23,6 +30,8 @@ omnibus test is not significant.}
 
 \item{compute}{Logical; if \code{TRUE}, \code{\link[=test]{test()}} will compute post-hoc
 contrasts automatically after fitting the main test.}
+
+\item{conf_level}{Confidence level for intervals (default 0.95).}
 }
 \value{
 The updated model specification.

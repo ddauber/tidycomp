@@ -4,7 +4,7 @@
 \alias{post_hoc}
 \title{Compute pairwise post-hoc comparisons}
 \usage{
-post_hoc(x, method = "auto", alpha = 0.05, force = FALSE)
+post_hoc(x, method = "auto", alpha = 0.05, force = FALSE, conf_level = 0.95)
 }
 \arguments{
 \item{x}{A \code{comp_spec} that has been fit with \code{\link[=test]{test()}}. If not yet fit,
@@ -16,6 +16,8 @@ default based on the engine and data.}
 \item{alpha}{Significance level used for gating (default 0.05).}
 
 \item{force}{Logical; compute even if omnibus test is not significant.}
+
+\item{conf_level}{Confidence interval level (default 0.95).}
 }
 \value{
 If \code{x} is a spec, the updated spec with \verb{$post_hoc}; otherwise a
