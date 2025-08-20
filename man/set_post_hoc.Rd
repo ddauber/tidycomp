@@ -7,6 +7,7 @@
 set_post_hoc(
   x,
   method = "auto",
+  adjust = "auto",
   alpha = 0.05,
   force = FALSE,
   compute = FALSE,
@@ -18,9 +19,14 @@ set_post_hoc(
 
 \item{method}{Post-hoc method to use. Use "auto" to allow
 \code{\link[=post_hoc]{post_hoc()}} to choose a sensible default based on the engine and data.
-Possible values include "tukey", "bonferroni", "holm",
+Supported values include: "tukey", "pairwise_t_test",
 "pairwise_wilcox_test", "pairwise_prop_test", "games_howell",
 and "dunn".}
+
+\item{adjust}{Multiple-comparison adjustment to apply. Use "auto" to
+select a method-specific default (e.g., "holm" for pairwise \emph{t}-tests,
+"bonferroni" for proportion tests). Set to any valid
+\code{stats::p.adjust} method.}
 
 \item{alpha}{Significance level used to gate computation. If the
 omnibus p-value is greater than or equal to \code{alpha}, post-hoc tests are

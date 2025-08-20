@@ -4,7 +4,15 @@
 \alias{post_hoc}
 \title{Compute pairwise post-hoc comparisons}
 \usage{
-post_hoc(x, method = "auto", alpha = 0.05, force = FALSE, conf_level = 0.95)
+post_hoc(
+  x,
+  method = c("auto", "tukey", "pairwise_t_test", "pairwise_wilcox_test",
+    "pairwise_prop_test", "games_howell", "dunn"),
+  adjust = "auto",
+  alpha = 0.05,
+  force = FALSE,
+  conf_level = 0.95
+)
 }
 \arguments{
 \item{x}{A \code{comp_spec} that has been fit with \code{\link[=test]{test()}}. If not yet fit,
@@ -12,6 +20,9 @@ post_hoc(x, method = "auto", alpha = 0.05, force = FALSE, conf_level = 0.95)
 
 \item{method}{Post-hoc method (see \code{\link[=set_post_hoc]{set_post_hoc()}}). Use "auto" to pick a
 default based on the engine and data.}
+
+\item{adjust}{Multiple-comparison adjustment. Use "auto" for a
+method-specific default.}
 
 \item{alpha}{Significance level used for gating (default 0.05).}
 
