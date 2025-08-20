@@ -20,6 +20,7 @@ test_that("comp_spec validates input and initializes structure", {
       'effects',
       'effects_args',
       'effects_hint',
+      'post_hoc_hint',
       'post_hoc',
       'post_hoc_args',
       'engine_args'

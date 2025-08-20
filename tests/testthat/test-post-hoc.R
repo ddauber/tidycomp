@@ -17,18 +17,20 @@ test_that("post_hoc defaults to TukeyHSD", {
 
   expect_s3_class(spec$post_hoc, "tbl_df")
   expect_equal(unique(spec$post_hoc$method), "TukeyHSD")
+  expect_equal(unique(spec$post_hoc$p.adj.method), "tukey")
 })
 
-test_that("set_post_hoc overrides method", {
+test_that("set_post_hoc overrides method and adjustment", {
   spec <- comp_spec(df) |>
     set_roles(outcome = outcome, group = group) |>
     set_design("independent") |>
     set_outcome_type("numeric") |>
     set_engine("anova_oneway_equal") |>
-    set_post_hoc(method = "bonferroni") |>
+    set_post_hoc(method = "pairwise_t_test", adjust = "bonferroni") |>
     test() |>
     post_hoc()
 
+  expect_equal(unique(spec$post_hoc$method), "t.test")
   expect_equal(unique(spec$post_hoc$p.adj.method), "bonferroni")
 })
 
@@ -49,7 +51,7 @@ test_that("post_hoc skips when omnibus not significant", {
   expect_true(isTRUE(attr(spec$post_hoc, "skipped")))
 })
 
-test_that("kruskal-wallis uses pairwise_wilcox_test by default", {
+test_that("kruskal-wallis uses appropriate default", {
   spec <- comp_spec(df) |>
     set_roles(outcome = outcome, group = group) |>
     set_design("independent") |>
@@ -58,7 +60,11 @@ test_that("kruskal-wallis uses pairwise_wilcox_test by default", {
     test() |>
     post_hoc()
 
-  expect_equal(unique(spec$post_hoc$method), "wilcox.test")
+  if (requireNamespace("rstatix", quietly = TRUE)) {
+    expect_equal(unique(spec$post_hoc$method), "dunn_test")
+  } else {
+    expect_equal(unique(spec$post_hoc$method), "wilcox.test")
+  }
 })
 
 df_bin <- tibble::tibble(
@@ -76,4 +82,28 @@ test_that("binary outcomes use pairwise_prop_test", {
     post_hoc()
 
   expect_equal(unique(spec$post_hoc$method), "prop.test")
+  expect_equal(unique(spec$post_hoc$p.adj.method), "bonferroni")
+})
+
+test_that(".default_post_hoc_method honors spec$post_hoc_hint", {
+  spec <- structure(list(post_hoc_hint = "pairwise_t_test"), class = "comp_spec")
+  out <- tidycomp:::.default_post_hoc_method(
+    spec_or_fit = spec,
+    fitted = NULL,
+    design = NULL,
+    outcome_type = "numeric"
+  )
+  expect_identical(out, "pairwise_t_test")
+})
+
+test_that(".default_post_hoc_method honors fitted attr 'post_hoc_hint'", {
+  fitted <- list()
+  attr(fitted, "post_hoc_hint") <- "tukey"
+  out <- tidycomp:::.default_post_hoc_method(
+    spec_or_fit = list(),
+    fitted = fitted,
+    design = NULL,
+    outcome_type = "numeric"
+  )
+  expect_identical(out, "tukey")
 })

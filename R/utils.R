@@ -469,3 +469,19 @@
     NULL
   )
 }
+
+.engine_post_hoc_hint <- function(engine) {
+  switch(
+    engine,
+    anova_oneway_equal = "tukey",
+    anova_oneway_welch = "games_howell",
+    kruskal_wallis = "dunn",
+    anova_repeated = "pairwise_t_test",
+    anova_repeated_base = "pairwise_t_test",
+    friedman = "pairwise_wilcox_test",
+    chisq_yates = "pairwise_prop_test",
+    chisq_nxn = "pairwise_prop_test",
+    fisher_exact = "pairwise_prop_test",
+    NULL
+  )
+}
