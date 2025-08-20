@@ -242,6 +242,23 @@ post_hoc <- function(
   g <- factor(data[[group]])
   o <- data[[outcome]]
   combs <- utils::combn(levels(g), 2, simplify = FALSE)
+
+  p_raw <- stats::pairwise.t.test(
+    o,
+    g,
+    p.adjust.method = "none",
+    pool.sd = TRUE,
+    paired = design == "paired"
+  )$p.value
+
+  p_adj_obj <- stats::pairwise.t.test(
+    o,
+    g,
+    p.adjust.method = p.adjust,
+    pool.sd = TRUE,
+    paired = design == "paired"
+  )
+
   res <- purrr::map_dfr(combs, function(pair) {
     x1 <- o[g == pair[1]]
     x2 <- o[g == pair[2]]
@@ -249,6 +266,7 @@ post_hoc <- function(
       x1,
       x2,
       paired = design == "paired",
+      var.equal = TRUE,
       conf.level = conf_level
     )
     est <- if (length(tt$estimate) == 2) {
@@ -262,11 +280,12 @@ post_hoc <- function(
       estimate = est,
       conf.low = tt$conf.int[1],
       conf.high = tt$conf.int[2],
-      p.value = tt$p.value
+      p.value = p_raw[pair[2], pair[1]],
+      p.adj = p_adj_obj$p.value[pair[2], pair[1]]
     )
   })
-  res$p.adj <- stats::p.adjust(res$p.value, method = p.adjust)
-  res$p.adj.method <- p.adjust
+
+  res$p.adj.method <- p_adj_obj$p.adjust.method
   res$method <- "t.test"
   res
 }

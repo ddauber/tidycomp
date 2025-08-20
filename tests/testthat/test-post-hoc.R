@@ -34,6 +34,42 @@ test_that("set_post_hoc overrides method and adjustment", {
   expect_equal(unique(spec$post_hoc$p.adj.method), "bonferroni")
 })
 
+test_that("pairwise_t_test uses stats::pairwise.t.test", {
+  spec <- comp_spec(df) |>
+    set_roles(outcome = outcome, group = group) |>
+    set_design("independent") |>
+    set_outcome_type("numeric") |>
+    set_post_hoc(method = "pairwise_t_test", adjust = "bonferroni") |>
+    test() |>
+    post_hoc()
+
+  pw_raw <- stats::pairwise.t.test(
+    df$outcome,
+    df$group,
+    pool.sd = TRUE,
+    p.adjust.method = "none"
+  )$p.value
+  pw_adj <- stats::pairwise.t.test(
+    df$outcome,
+    df$group,
+    pool.sd = TRUE,
+    p.adjust.method = "bonferroni"
+  )$p.value
+  combs <- utils::combn(levels(df$group), 2, simplify = FALSE)
+  expected <- purrr::map_dfr(combs, function(pair) {
+    tibble::tibble(
+      group1 = pair[1],
+      group2 = pair[2],
+      p.value = pw_raw[pair[2], pair[1]],
+      p.adj = pw_adj[pair[2], pair[1]]
+    )
+  })
+  spec_res <- dplyr::arrange(spec$post_hoc, group1, group2)
+  expected <- dplyr::arrange(expected, group1, group2)
+  expect_equal(spec_res$p.value, expected$p.value)
+  expect_equal(spec_res$p.adj, expected$p.adj)
+})
+
 test_that("post_hoc skips when omnibus not significant", {
   df2 <- tibble::tibble(
     outcome = rep(1:4, 3),
@@ -79,7 +115,7 @@ test_that("binary outcomes use pairwise_prop_test", {
     set_outcome_type("binary") |>
     set_engine("chisq_nxn") |>
     test() |>
-    post_hoc()
+    post_hoc(force = TRUE)
 
   expect_equal(unique(spec$post_hoc$method), "prop.test")
   expect_equal(unique(spec$post_hoc$p.adj.method), "bonferroni")
