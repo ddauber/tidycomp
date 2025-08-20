@@ -61,6 +61,9 @@ comp_spec <- function(data) {
       effects = NULL,
       effects_args = list(),
       effects_hint = NULL,
+      post_hoc_hint = NULL,
+      post_hoc = NULL,
+      post_hoc_args = list(),
       engine_args = list()
     ),
     class = "comp_spec"
@@ -193,6 +196,7 @@ set_engine <- function(spec, engine) {
   }
   spec$engine <- engine
   spec$effects_hint <- .engine_effect_hint(engine)
+  spec$post_hoc_hint <- .engine_post_hoc_hint(engine)
   cli::cli_inform("Engine set to `{engine}` (manual override).")
   spec
 }

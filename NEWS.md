@@ -1,3 +1,5 @@
+# tidycomp 0.5.0
+
 # tidycomp 0.4.0
 
 -   Added 6 new engines for categorical comparisons:

@@ -75,7 +75,6 @@ test_that("test() requires id for repeated design", {
   expect_error(test(spec), "id role")
 })
 
-
 test_that("test() errors when binary outcome column is not factor", {
   spec <- suppressMessages(
     comp_spec(mtcars) |>

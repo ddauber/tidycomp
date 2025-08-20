@@ -691,7 +691,6 @@ test_that(".compute_effects errors when effectsize is not installed", {
   )
 })
 
-
 test_that(".compute_effects (Kendall's W) errors when effectsize is unavailable", {
   # Build a real Friedman test result (htest)
   set.seed(1)
@@ -997,7 +996,6 @@ test_that(".default_effect_type returns 'kendalls_w' for Friedman htest", {
   )
   expect_identical(out, "kendalls_w")
 })
-
 
 test_that(".compute_effects computes model R2 for glm", {
   skip_if_not_installed("performance")

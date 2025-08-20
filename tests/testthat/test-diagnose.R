@@ -128,3 +128,124 @@ test_that("diagnose computes sphericity p-value for repeated design", {
   expect_s3_class(spec$diagnostics$sphericity, "tbl_df")
   expect_true(is.numeric(spec$diagnostics$sphericity$p[1]))
 })
+
+test_that("diagnose() errors if outcome_type=='numeric' but outcome is non-numeric (guard branch)", {
+  # stable cli formatting
+  testthat::local_reproducible_output(unicode = FALSE)
+  withr::local_options(cli.width = 1e6)
+
+  # non-numeric outcome with >2 levels so it won't be auto-binarized
+  df <- data.frame(
+    y = factor(c("a", "b", "c", "a", "b", "c")),
+    g = factor(c("A", "A", "B", "B", "C", "C"))
+  )
+
+  spec <- df |>
+    tidycomp::comp_spec() |>
+    tidycomp::set_roles(outcome = y, group = g) |>
+    tidycomp::set_design("independent") |>
+    tidycomp::set_outcome_type("numeric")
+
+  # force the later guard by making identical(...) FALSE but == "numeric" TRUE
+  spec$outcome_type <- structure("numeric", note = "force-guard-branch")
+
+  # relaxed regex: just assert the key phrase is present
+  expect_error(
+    tidycomp::diagnose(spec),
+    regexp = "requires a numeric outcome.*outcome_type.*numeric",
+    class = "rlang_error"
+  )
+})
+
+test_that("diagnose() coerces group/outcome to factor for binary + independent", {
+  ns <- asNamespace("tidycomp")
+  orig <- get(".diagnose_contingency", envir = ns)
+
+  on.exit(assign(".diagnose_contingency", orig, envir = ns), add = TRUE)
+
+  testthat::local_mocked_bindings(
+    .diagnose_contingency = function(g, o, ...) {
+      expect_true(is.factor(g))
+      expect_true(is.factor(o))
+      list(group_sizes = as.data.frame(table(g)), notes = character())
+    },
+    .env = ns
+  )
+
+  testthat::local_reproducible_output(unicode = FALSE)
+  withr::local_options(cli.width = 1e6)
+
+  df <- data.frame(
+    outcome = c("yes", "no", "yes", "no", "yes", "no"),
+    group = c("A", "A", "B", "B", "C", "C"),
+    stringsAsFactors = FALSE
+  )
+
+  # safe mock: match signature with ...
+  testthat::local_mocked_bindings(
+    .diagnose_contingency = function(g, o, ...) {
+      expect_true(is.factor(g))
+      expect_true(is.factor(o))
+      # return structure compatible with downstream
+      list(group_sizes = as.data.frame(table(g)), notes = character())
+    },
+    .env = asNamespace("tidycomp")
+  )
+
+  spec <- df |>
+    tidycomp::comp_spec() |>
+    tidycomp::set_roles(outcome = outcome, group = group) |>
+    tidycomp::set_design("independent") |>
+    tidycomp::set_outcome_type("binary")
+
+  spec2 <- tidycomp::diagnose(spec)
+  expect_true(is.list(spec2$diagnostics))
+})
+
+
+test_that("diagnose() errors for binary outcome with unsupported design", {
+  testthat::local_reproducible_output(unicode = FALSE)
+  withr::local_options(cli.width = 1e6)
+
+  df <- data.frame(
+    outcome = factor(c("yes", "no", "yes", "no", "yes", "no")),
+    group = factor(c("A", "A", "B", "B", "C", "C"))
+  )
+
+  spec <- df |>
+    tidycomp::comp_spec() |>
+    tidycomp::set_roles(outcome = outcome, group = group) |>
+    # any design other than 'independent' or 'paired' should trigger the abort
+    tidycomp::set_design("repeated") |>
+    tidycomp::set_outcome_type("binary")
+
+  expect_error(
+    tidycomp::diagnose(spec),
+    regexp = "supports binary outcomes for independent or paired designs",
+    class = "rlang_error"
+  )
+})
+
+test_that("diagnose() errors for unsupported outcome_type handled by diagnose()", {
+  testthat::local_reproducible_output(unicode = FALSE)
+  withr::local_options(cli.width = 1e6)
+
+  # outcome with > 2 levels so it won't be auto-binarized
+  df <- data.frame(
+    outcome = factor(c("a", "b", "c", "a", "b", "c")),
+    group = factor(c("A", "A", "B", "B", "C", "C"))
+  )
+
+  spec <- df |>
+    tidycomp::comp_spec() |>
+    tidycomp::set_roles(outcome = outcome, group = group) |>
+    tidycomp::set_design("independent") |>
+    # Use a type allowed by the setter but unsupported by diagnose()
+    tidycomp::set_outcome_type("ordered")
+
+  expect_error(
+    tidycomp::diagnose(spec),
+    regexp = "does not support outcome type.*ordered",
+    class = "rlang_error"
+  )
+})
