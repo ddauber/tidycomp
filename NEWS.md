@@ -1,6 +1,6 @@
 # tidycomp 0.5.0
 
--   `post_hoc` and `set_post_hoc()` adds post-hoc tests for multiple group comparisons:
+-   `post_hoc()` and `set_post_hoc()` add post-hoc tests for multiple group comparisons:
 
     -   `tukey`,
     -   `pairwise_t_test`,
