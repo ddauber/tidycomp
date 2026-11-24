@@ -8,3 +8,5 @@
 ^manual_testing$
 ^codecov\.yml$
 ^\.github$
+^TODO\.md$
+^tidycomp-review-decisions\.md$
