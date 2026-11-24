@@ -1,3 +1,7 @@
+# tidycomp (development version)
+
+-   **Breaking change:** `effects()` has been renamed to `compute_effects()` to avoid masking `stats::effects()`. Update existing pipelines (e.g. `test() |> compute_effects()`). Error messages and documentation now refer to `compute_effects()`.
+
 # tidycomp 0.5.0
 
 -   `post_hoc()` and `set_post_hoc()` add post-hoc tests for multiple group comparisons:

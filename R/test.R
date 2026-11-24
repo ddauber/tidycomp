@@ -218,7 +218,7 @@ test <- function(spec) {
   cli::cli_inform("Engine run: {engine}.")
 
   if (isTRUE(spec$effects_args$compute)) {
-    spec <- effects(spec)
+    spec <- compute_effects(spec)
   }
 
   if (isTRUE(spec$post_hoc_args$compute)) {

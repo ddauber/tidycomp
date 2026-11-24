@@ -3,7 +3,7 @@ library(tidycomp)
 
 # default resolution without set_effects()
 
-test_that("effects() uses engine hint when no set_effects()", {
+test_that("compute_effects() uses engine hint when no set_effects()", {
   df <- tibble::tibble(
     outcome = c(1, 2, 3, 4, 10, 20, 30, 40),
     group = factor(rep(c("A", "B"), each = 4))
@@ -15,7 +15,7 @@ test_that("effects() uses engine hint when no set_effects()", {
     set_outcome_type("numeric") |>
     set_engine("welch_t") |>
     test() |>
-    effects()
+    compute_effects()
 
   expect_s3_class(spec$effects, "tbl_df")
   expect_equal(spec$effects$type, "d")
@@ -42,9 +42,9 @@ test_that("set_effects(compute=TRUE) triggers computation in test()", {
   expect_equal(spec$effects$type, "d")
 })
 
-# effects() runs test() if needed
+# compute_effects() runs test() if needed
 
-test_that("effects() runs test() on spec if needed", {
+test_that("compute_effects() runs test() on spec if needed", {
   df <- tibble::tibble(
     outcome = c(1, 2, 3, 4, 10, 20, 30, 40),
     group = factor(rep(c("A", "B"), each = 4))
@@ -56,7 +56,7 @@ test_that("effects() runs test() on spec if needed", {
     set_outcome_type("numeric") |>
     set_engine("welch_t")
 
-  spec <- effects(spec)
+  spec <- compute_effects(spec)
 
   expect_s3_class(spec$fitted, "comp_result")
   expect_s3_class(spec$effects, "tbl_df")
@@ -64,7 +64,7 @@ test_that("effects() runs test() on spec if needed", {
 
 # effects on fitted result with attached model
 
-test_that("effects() works on a fitted result", {
+test_that("compute_effects() works on a fitted result", {
   df <- tibble::tibble(
     outcome = c(1, 2, 3, 4, 5, 6, 7, 8, 9),
     group = factor(rep(c("A", "B", "C"), each = 3))
@@ -78,7 +78,7 @@ test_that("effects() works on a fitted result", {
     test()
 
   fit <- spec$fitted
-  es <- effects(fit)
+  es <- compute_effects(fit)
 
   expect_s3_class(es, "tbl_df")
   expect_false(is.null(attr(es, "model")))
@@ -86,7 +86,7 @@ test_that("effects() works on a fitted result", {
 
 # effects on repeated-measures ANOVA
 
-test_that("effects() locates model for repeated measures", {
+test_that("compute_effects() locates model for repeated measures", {
   skip_if_not_installed("effectsize")
 
   df <- tibble::tibble(
@@ -103,14 +103,14 @@ test_that("effects() locates model for repeated measures", {
     test()
 
   fit <- spec$fitted
-  es <- effects(fit)
+  es <- compute_effects(fit)
 
   expect_s3_class(es, "tbl_df")
   expect_false(is.null(attr(es, "model")))
 })
 
 # Cohen's d for paired designs
-test_that("effects() computes Cohen's d for paired design", {
+test_that("compute_effects() computes Cohen's d for paired design", {
   skip_if_not_installed("effectsize")
 
   df <- tibble::tibble(
@@ -125,7 +125,7 @@ test_that("effects() computes Cohen's d for paired design", {
     set_outcome_type("numeric") |>
     set_engine("paired_t") |>
     test() |>
-    effects()
+    compute_effects()
 
   wide <- tidycomp:::.standardize_paired_numeric(df, "outcome", "group", "id")
   g <- names(wide)
@@ -136,7 +136,7 @@ test_that("effects() computes Cohen's d for paired design", {
 })
 
 # Rank-biserial for paired Wilcoxon tests
-test_that("effects() computes rank-biserial for paired design", {
+test_that("compute_effects() computes rank-biserial for paired design", {
   skip_if_not_installed("effectsize")
 
   df <- tibble::tibble(
@@ -151,7 +151,7 @@ test_that("effects() computes rank-biserial for paired design", {
     set_outcome_type("numeric") |>
     set_engine("wilcoxon_signed_rank") |>
     test() |>
-    effects()
+    compute_effects()
 
   wide <- tidycomp:::.standardize_paired_numeric(df, "outcome", "group", "id")
   g <- names(wide)
@@ -166,7 +166,7 @@ test_that("effects() computes rank-biserial for paired design", {
 })
 
 # Kendall's W for Friedman tests
-test_that("effects() computes Kendall's W for Friedman design", {
+test_that("compute_effects() computes Kendall's W for Friedman design", {
   skip_if_not_installed("effectsize")
 
   set.seed(1)
@@ -182,7 +182,7 @@ test_that("effects() computes Kendall's W for Friedman design", {
     set_outcome_type("numeric") |>
     set_engine("friedman") |>
     test() |>
-    effects()
+    compute_effects()
 
   expected <- effectsize::kendalls_w(outcome ~ group | id, data = df)
 
@@ -193,7 +193,7 @@ test_that("effects() computes Kendall's W for Friedman design", {
 # Additional parity tests for effect sizes ------------------------------------
 
 for (eng in c("welch_t", "student_t")) {
-  test_that(paste0("effects() computes Cohen's d for ", eng), {
+  test_that(paste0("compute_effects() computes Cohen's d for ", eng), {
     skip_if_not_installed("effectsize")
 
     df <- tibble::tibble(
@@ -207,14 +207,14 @@ for (eng in c("welch_t", "student_t")) {
       set_outcome_type("numeric") |>
       set_engine(eng) |>
       test() |>
-      effects()
+      compute_effects()
 
     expected <- effectsize::cohens_d(outcome ~ group, data = df)
     expect_equal(spec$effects$estimate, expected$Cohens_d)
   })
 }
 
-test_that("effects() computes rank-biserial for mann_whitney", {
+test_that("compute_effects() computes rank-biserial for mann_whitney", {
   skip_if_not_installed("effectsize")
 
   df <- tibble::tibble(
@@ -228,7 +228,7 @@ test_that("effects() computes rank-biserial for mann_whitney", {
     set_outcome_type("numeric") |>
     set_engine("mann_whitney") |>
     test() |>
-    effects()
+    compute_effects()
 
   rb <- effectsize::rank_biserial(outcome ~ group, data = df)
   est <- rb$r_rank_biserial
@@ -241,7 +241,7 @@ test_that("effects() computes rank-biserial for mann_whitney", {
   expect_equal(spec$effects$estimate, est)
 })
 
-test_that("effects() computes omega squared for one-way ANOVA", {
+test_that("compute_effects() computes omega squared for one-way ANOVA", {
   skip_if_not_installed("effectsize")
 
   df <- tibble::tibble(
@@ -263,7 +263,7 @@ test_that("effects() computes omega squared for one-way ANOVA", {
   col <- intersect(c("Omega2", "omega.sq", "omega_sq"), names(expected))[1]
   expect_true(length(col) == 1, info = "No matching omega-squared column found")
 
-  spec <- effects(spec)
+  spec <- compute_effects(spec)
 
   expect_equal(
     spec$effects$estimate,
@@ -272,7 +272,7 @@ test_that("effects() computes omega squared for one-way ANOVA", {
   )
 })
 
-test_that("effects() computes omega squared for Welch ANOVA", {
+test_that("compute_effects() computes omega squared for Welch ANOVA", {
   skip_if_not_installed("effectsize")
 
   df <- tibble::tibble(
@@ -286,13 +286,13 @@ test_that("effects() computes omega squared for Welch ANOVA", {
     set_outcome_type("numeric") |>
     set_engine("anova_oneway_welch") |>
     test() |>
-    effects(type = "omega2")
+    compute_effects(type = "omega2")
   expect_s3_class(spec$effects, "tbl_df")
   expect_equal(spec$effects$type, "omega2")
   expect_false(is.na(spec$effects$estimate))
 })
 
-test_that("effects() computes rank epsilon squared for kruskal_wallis", {
+test_that("compute_effects() computes rank epsilon squared for kruskal_wallis", {
   skip_if_not_installed("effectsize")
 
   df <- tibble::tibble(
@@ -306,13 +306,13 @@ test_that("effects() computes rank epsilon squared for kruskal_wallis", {
     set_outcome_type("numeric") |>
     set_engine("kruskal_wallis") |>
     test() |>
-    effects()
+    compute_effects()
 
   expected <- effectsize::rank_epsilon_squared(outcome ~ group, data = df)
   expect_equal(spec$effects$estimate, expected[[1]])
 })
 
-test_that("effects() computes generalized eta squared for repeated measures", {
+test_that("compute_effects() computes generalized eta squared for repeated measures", {
   skip_if_not_installed("effectsize")
 
   df <- tibble::tibble(
@@ -329,7 +329,7 @@ test_that("effects() computes generalized eta squared for repeated measures", {
     test()
 
   es <- effectsize::eta_squared(attr(spec$fitted, "model"), generalized = TRUE)
-  spec <- effects(spec)
+  spec <- compute_effects(spec)
   col <- intersect(
     c(
       "GES",
@@ -461,7 +461,7 @@ test_that(".default_effect_type returns current behavior for Friedman via chain"
     set_outcome_type("numeric") |>
     set_engine("friedman") |>
     test() |>
-    effects()
+    compute_effects()
 
   # model <- attr(spec$fitted, "model") # stats::friedman.test -> htest
   # out <- tidycomp:::.default_effect_type(
@@ -483,7 +483,7 @@ test_that(".default_effect_type falls back to 'eta2' otherwise", {
   expect_identical(out, "eta2")
 })
 
-test_that("effects() errors for rank epsilon squared when effectsize missing", {
+test_that("compute_effects() errors for rank epsilon squared when effectsize missing", {
   df <- tibble::tibble(
     outcome = c(1, 2, 3, 4, 5, 6, 7, 8, 9),
     group = factor(rep(c("A", "B", "C"), each = 3))
@@ -501,7 +501,7 @@ test_that("effects() errors for rank epsilon squared when effectsize missing", {
     .package = "rlang",
     {
       expect_error(
-        effects(spec, type = "epsilon2"),
+        compute_effects(spec, type = "epsilon2"),
         "Package 'effectsize' is required for epsilon squared.",
         fixed = TRUE
       )
@@ -511,7 +511,7 @@ test_that("effects() errors for rank epsilon squared when effectsize missing", {
 
 # effects require effectsize for d/g
 
-test_that("effects() errors without effectsize for Cohen's d/g", {
+test_that("compute_effects() errors without effectsize for Cohen's d/g", {
   df <- tibble::tibble(
     outcome = c(1, 2, 3, 4, 10, 20, 30, 40),
     group = factor(rep(c("A", "B"), each = 4))
@@ -529,7 +529,7 @@ test_that("effects() errors without effectsize for Cohen's d/g", {
     .package = "rlang",
     {
       expect_error(
-        effects(spec, type = "d"),
+        compute_effects(spec, type = "d"),
         "Package 'effectsize' is required for Cohen's d / Hedges' g.",
         fixed = TRUE
       )
@@ -552,11 +552,11 @@ test_that("Cohen's d requires original data/roles when called on a fitted object
     set_engine("welch_t") |>
     test()
 
-  fit <- spec$fitted # no parent spec passed to effects()
+  fit <- spec$fitted # no parent spec passed to compute_effects()
 
   expect_error(
-    effects(fit, type = "d"),
-    "Cohen's d/g require the original data and roles; call effects() on a spec.",
+    compute_effects(fit, type = "d"),
+    "Cohen's d/g require the original data and roles; call compute_effects() on a spec.",
     fixed = TRUE
   )
 })
@@ -576,11 +576,11 @@ test_that("Hedges's g requires original data/roles when called on a fitted objec
     set_engine("student_t") |>
     test()
 
-  fit <- spec$fitted # no parent spec passed to effects()
+  fit <- spec$fitted # no parent spec passed to compute_effects()
 
   expect_error(
-    effects(fit, type = "g"),
-    "Cohen's d/g require the original data and roles; call effects() on a spec.",
+    compute_effects(fit, type = "g"),
+    "Cohen's d/g require the original data and roles; call compute_effects() on a spec.",
     fixed = TRUE
   )
 })
@@ -604,13 +604,13 @@ test_that("omega squared for Welch ANOVA errors without original data", {
   fit <- spec$fitted
 
   expect_error(
-    effects(fit, type = "omega2"),
+    compute_effects(fit, type = "omega2"),
     "Omega squared for Welch's ANOVA requires the original data",
     fixed = TRUE
   )
 })
 
-test_that("effects() computes epsilon squared for one-way ANOVA", {
+test_that("compute_effects() computes epsilon squared for one-way ANOVA", {
   skip_if_not_installed("effectsize")
 
   df <- tibble::tibble(
@@ -630,14 +630,14 @@ test_that("effects() computes epsilon squared for one-way ANOVA", {
     1
   ]
 
-  spec <- effects(spec, type = "epsilon2")
+  spec <- compute_effects(spec, type = "epsilon2")
 
   expect_s3_class(spec$effects, "tbl_df")
   expect_equal(spec$effects$type, "epsilon2")
   expect_equal(spec$effects$estimate, expected[[col]][1], tolerance = 1e-8)
 })
 
-test_that("effects() errors for kendalls_w on htest without spec", {
+test_that("compute_effects() errors for kendalls_w on htest without spec", {
   df <- tibble::tibble(
     id = rep(1:3, each = 3),
     group = factor(rep(c("A", "B", "C"), times = 3)),
@@ -648,8 +648,8 @@ test_that("effects() errors for kendalls_w on htest without spec", {
   attr(fit, "model") <- stats::friedman.test(outcome ~ group | id, data = df)
 
   expect_error(
-    effects(fit, type = "kendalls_w"),
-    "Kendall's W requires the original data and roles; call effects() on a spec.",
+    compute_effects(fit, type = "kendalls_w"),
+    "Kendall's W requires the original data and roles; call compute_effects() on a spec.",
     fixed = TRUE
   )
 })
@@ -668,7 +668,7 @@ test_that(".compute_effects(omega2) on Welch ANOVA without spec errors with help
       conf_level = 0.95,
       parent_spec = NULL
     ),
-    "Omega squared for Welch's ANOVA requires the original data; call effects\\(\\) on a spec\\.",
+    "Omega squared for Welch's ANOVA requires the original data; call compute_effects\\(\\) on a spec\\.",
     perl = TRUE
   )
 })
@@ -676,8 +676,9 @@ test_that(".compute_effects(omega2) on Welch ANOVA without spec errors with help
 test_that(".compute_effects errors when effectsize is not installed", {
   mdl <- lm(mpg ~ cyl, data = mtcars)
 
-  testthat::with_mock(
-    `rlang::is_installed` = function(pkg) FALSE,
+  testthat::with_mocked_bindings(
+    is_installed = function(...) FALSE,
+    .package = "rlang",
     {
       expect_error(
         tidycomp:::.compute_effects(
@@ -712,8 +713,9 @@ test_that(".compute_effects (Kendall's W) errors when effectsize is unavailable"
   )
 
   # Mock rlang::is_installed() to simulate "effectsize" not installed
-  testthat::with_mock(
-    `rlang::is_installed` = function(pkg) FALSE,
+  testthat::with_mocked_bindings(
+    is_installed = function(...) FALSE,
+    .package = "rlang",
     {
       expect_error(
         tidycomp:::.compute_effects(
@@ -762,7 +764,7 @@ test_that(".compute_effects (Kendall's W) errors when id role is missing", {
   )
 })
 
-test_that("effects() auto-runs test() for an unfitted spec and returns spec with effects", {
+test_that("compute_effects() auto-runs test() for an unfitted spec and returns spec with effects", {
   skip_if_not_installed("effectsize") # Cohen's d etc. used by default in two-group t
 
   # Build an unfitted spec (no test() call on purpose)
@@ -771,8 +773,8 @@ test_that("effects() auto-runs test() for an unfitted spec and returns spec with
     set_design("independent") |>
     set_outcome_type("numeric")
 
-  # Call effects(); this should trigger the auto-fit branch and return a spec
-  spec2 <- effects(spec)
+  # Call compute_effects(); this should trigger the auto-fit branch and return a spec
+  spec2 <- compute_effects(spec)
 
   # We get back a spec
   expect_s3_class(spec2, "comp_spec")
@@ -789,12 +791,12 @@ test_that("effects() auto-runs test() for an unfitted spec and returns spec with
   expect_true("type" %in% names(spec2$effects))
 })
 
-test_that("effects() errors when no attached model is present", {
+test_that("compute_effects() errors when no attached model is present", {
   # Pass a bare tibble (not a spec, no 'model' attribute)
   bad_fitted <- tibble::tibble(x = 1:3)
 
   expect_error(
-    effects(bad_fitted),
+    compute_effects(bad_fitted),
     "No attached model found; cannot compute effect sizes\\.",
     perl = TRUE
   )
@@ -808,8 +810,9 @@ test_that(".compute_effects errors if no matching estimate column exists (eta2)"
 
   # Mock effectsize::eta_squared() to return a tibble with *no* candidate columns
   # (eta2 expects one of: "Eta2", "eta.sq", "eta_sq", etc.)
-  testthat::with_mock(
-    `effectsize::eta_squared` = function(...) {
+  testthat::with_mocked_bindings(
+    .package = "effectsize",
+    eta_squared = function(...) {
       tibble::tibble(foo = 0.11, bar = 0.22) # wrong column names on purpose
     },
     {
@@ -826,7 +829,7 @@ test_that(".compute_effects errors if no matching estimate column exists (eta2)"
   )
 })
 
-test_that("effects() conf_level only changes CI, not estimate", {
+test_that("compute_effects() conf_level only changes CI, not estimate", {
   skip_if_not_installed("effectsize")
 
   set.seed(123)
@@ -844,8 +847,8 @@ test_that("effects() conf_level only changes CI, not estimate", {
     diagnose() |>
     test()
 
-  eff_90 <- effects(spec, conf_level = 0.90)
-  eff_70 <- effects(spec, conf_level = 0.70)
+  eff_90 <- compute_effects(spec, conf_level = 0.90)
+  eff_70 <- compute_effects(spec, conf_level = 0.70)
 
   # Estimate must be identical
   expect_equal(
@@ -893,9 +896,9 @@ test_that("rank-biserial errors if effectsize is unavailable (Wilcoxon path)", {
     add = TRUE
   )
 
-  # Call effects() on the SPEC (so parent_spec is not NULL) with rank_biserial
+  # Call compute_effects() on the SPEC (so parent_spec is not NULL) with rank_biserial
   expect_error(
-    effects(spec, type = "rank_biserial"),
+    compute_effects(spec, type = "rank_biserial"),
     "Package 'effectsize' is required for rank-biserial.",
     fixed = TRUE
   )
@@ -916,7 +919,7 @@ test_that("rank-biserial returns a tibble when effectsize is available (Wilcoxon
     set_engine("mann_whitney") |>
     test()
 
-  es <- effects(spec, type = "rank_biserial")
+  es <- compute_effects(spec, type = "rank_biserial")
   expect_s3_class(es$effects, "tbl_df")
   expect_equal(nrow(es$effects), 1L)
   expect_true(all(c("effect", "type", "estimate") %in% names(es$effects)))
@@ -933,7 +936,7 @@ test_that(".compute_effects errors for Welch ANOVA without original data", {
       conf_level = 0.95,
       parent_spec = NULL
     ),
-    "Omega squared for Welch's ANOVA requires the original data; call effects() on a spec.",
+    "Omega squared for Welch's ANOVA requires the original data; call compute_effects() on a spec.",
     fixed = TRUE
   )
 })
@@ -953,11 +956,11 @@ test_that("rank-biserial requires original data/roles when called on a fitted ht
     set_engine("mann_whitney") |>
     test()
 
-  fit <- spec$fitted # <- call effects() on the fitted result (no parent_spec)
+  fit <- spec$fitted # <- call compute_effects() on the fitted result (no parent_spec)
 
   expect_error(
-    effects(fit, type = "rank_biserial"),
-    "Rank-biserial requires the original data and roles; call effects() on a spec.",
+    compute_effects(fit, type = "rank_biserial"),
+    "Rank-biserial requires the original data and roles; call compute_effects() on a spec.",
     fixed = TRUE
   )
 })
@@ -1003,8 +1006,9 @@ test_that(".compute_effects computes model R2 for glm", {
   mdl <- glm(am ~ mpg, data = mtcars, family = binomial())
   class(mdl) <- setdiff(class(mdl), "lm")
 
-  testthat::with_mock(
-    `performance::r2` = function(model) list(r2 = 0.5),
+  testthat::with_mocked_bindings(
+    r2 = function(model, ...) list(r2 = 0.5),
+    .package = "performance",
     {
       res <- tidycomp:::.compute_effects(
         model = mdl,
@@ -1027,8 +1031,9 @@ test_that(".compute_effects computes model R2 for lmerMod", {
 
   mdl <- lme4::lmer(Reaction ~ Days + (Days | Subject), data = lme4::sleepstudy)
 
-  testthat::with_mock(
-    `performance::r2` = function(model) list(r2 = 0.42),
+  testthat::with_mocked_bindings(
+    r2 = function(model, ...) list(r2 = 0.42),
+    .package = "performance",
     {
       res <- tidycomp:::.compute_effects(
         model = mdl,
@@ -1049,8 +1054,9 @@ test_that(".compute_effects (r2) errors when performance is unavailable", {
   mdl <- glm(am ~ mpg, data = mtcars, family = binomial())
   class(mdl) <- setdiff(class(mdl), "lm")
 
-  testthat::with_mock(
-    `rlang::is_installed` = function(pkg) FALSE,
+  testthat::with_mocked_bindings(
+    is_installed = function(...) FALSE,
+    .package = "rlang",
     {
       expect_error(
         tidycomp:::.compute_effects(
@@ -1065,7 +1071,7 @@ test_that(".compute_effects (r2) errors when performance is unavailable", {
   )
 })
 
-test_that("effects(..., type='omega2') uses parent data for Welch ANOVA (formula route)", {
+test_that("compute_effects(..., type='omega2') uses parent data for Welch ANOVA (formula route)", {
   skip_if_not_installed("effectsize", minimum_version = "0.8.7")
 
   set.seed(1)
@@ -1082,8 +1088,8 @@ test_that("effects(..., type='omega2') uses parent data for Welch ANOVA (formula
     diagnose() |>
     test()
 
-  # effects() returns the spec back; pull the table from $effects
-  res <- effects(spec, type = "omega2", conf_level = 0.90)
+  # compute_effects() returns the spec back; pull the table from $effects
+  res <- compute_effects(spec, type = "omega2", conf_level = 0.90)
   es <- if (inherits(res, "comp_spec")) res$effects else res
 
   # Reference: omega^2 from the model fit using the same data
@@ -1097,7 +1103,7 @@ test_that("effects(..., type='omega2') uses parent data for Welch ANOVA (formula
   expect_equal(es$estimate, expected$Omega2[1], tolerance = 1e-6)
 })
 
-test_that("effects(…, type = 'omega2') uses model route for classic ANOVA (non-Welch)", {
+test_that("compute_effects(…, type = 'omega2') uses model route for classic ANOVA (non-Welch)", {
   skip_if_not_installed("effectsize", minimum_version = "0.8.7")
 
   set.seed(2)
@@ -1114,7 +1120,7 @@ test_that("effects(…, type = 'omega2') uses model route for classic ANOVA (non
     diagnose() |>
     test()
 
-  res <- effects(spec, type = "omega2", conf_level = 0.90)
+  res <- compute_effects(spec, type = "omega2", conf_level = 0.90)
   es <- if (inherits(res, "comp_spec")) res$effects else res
 
   expected <- effectsize::omega_squared(
@@ -1129,7 +1135,7 @@ test_that("effects(…, type = 'omega2') uses model route for classic ANOVA (non
 
 # Categorical effect sizes ----------------------------------------------------
 
-test_that("effects() computes phi for fisher_exact", {
+test_that("compute_effects() computes phi for fisher_exact", {
   skip_if_not_installed("effectsize")
 
   df <- tibble::tibble(
@@ -1143,7 +1149,7 @@ test_that("effects() computes phi for fisher_exact", {
     set_outcome_type("binary") |>
     set_engine("fisher_exact") |>
     test() |>
-    effects()
+    compute_effects()
 
   expected <- effectsize::phi(table(df$group, df$outcome))
 
@@ -1156,7 +1162,7 @@ test_that("effects() computes phi for fisher_exact", {
   )
 })
 
-test_that("effects() computes cramers_v for chisq_nxn", {
+test_that("compute_effects() computes cramers_v for chisq_nxn", {
   skip_if_not_installed("effectsize")
 
   df <- tidyr::expand_grid(
@@ -1171,7 +1177,7 @@ test_that("effects() computes cramers_v for chisq_nxn", {
     set_outcome_type("binary") |>
     set_engine("chisq_nxn") |>
     test() |>
-    effects()
+    compute_effects()
 
   expected <- effectsize::cramers_v(table(df$group, df$outcome))
 
@@ -1180,7 +1186,7 @@ test_that("effects() computes cramers_v for chisq_nxn", {
   expect_equal(spec$effects$estimate, expected$Cramers_v[1], tolerance = 1e-6)
 })
 
-test_that("effects() computes oddsratio for mcnemar", {
+test_that("compute_effects() computes oddsratio for mcnemar", {
   skip_if_not_installed("effectsize")
 
   df <- tibble::tibble(
@@ -1195,7 +1201,7 @@ test_that("effects() computes oddsratio for mcnemar", {
     set_outcome_type("binary") |>
     set_engine("mcnemar_chi2") |>
     test() |>
-    effects()
+    compute_effects()
 
   wide <- tidycomp:::.standardize_paired_categorical(
     df,
@@ -1210,7 +1216,7 @@ test_that("effects() computes oddsratio for mcnemar", {
   expect_equal(spec$effects$estimate, expected$Odds_ratio[1], tolerance = 1e-6)
 })
 
-test_that("effects() defaults to cohens_g for mcnemar_exact", {
+test_that("compute_effects() defaults to cohens_g for mcnemar_exact", {
   skip_if_not_installed("effectsize")
 
   df <- tibble::tibble(
@@ -1225,7 +1231,7 @@ test_that("effects() defaults to cohens_g for mcnemar_exact", {
     set_outcome_type("binary") |>
     set_engine("mcnemar_exact") |>
     test() |>
-    effects()
+    compute_effects()
 
   wide <- tidycomp:::.standardize_paired_categorical(
     df,
@@ -1257,7 +1263,7 @@ test_that("oddsratio for mcnemar_exact applies Haldane-Anscombe correction", {
     set_effects(type = "oddsratio") |>
     test()
 
-  expect_warning(spec <- effects(spec), "Haldane-Anscombe")
+  expect_warning(spec <- compute_effects(spec), "Haldane-Anscombe")
 
   wide <- tidycomp:::.standardize_paired_categorical(
     df,
@@ -1308,7 +1314,7 @@ test_that("oddsratio correction can be disabled", {
     set_effects(type = "oddsratio", correction = FALSE) |>
     test()
 
-  expect_warning(spec <- effects(spec), "uncorrected odds ratio")
+  expect_warning(spec <- compute_effects(spec), "uncorrected odds ratio")
 
   expect_s3_class(spec$effects, "tbl_df")
   expect_equal(spec$effects$type, "oddsratio")

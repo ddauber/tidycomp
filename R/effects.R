@@ -1,7 +1,7 @@
 #' Set effect size options
 #'
 #' Records preferences for effect size computation to be used later by
-#' \code{\link{effects}()}.
+#' \code{\link{compute_effects}()}.
 #'
 #' @param x A model specification object created with \code{\link{comp_spec}()}.
 #' @param type Effect size type to compute. Use \code{"auto"} to select the
@@ -16,11 +16,11 @@
 #'   odds ratios for McNemar tests with zero discordant cells. Defaults to
 #'   \code{TRUE}.
 #' @param compute Logical; if \code{TRUE}, \code{\link{test}()} will compute
-#'   effect sizes automatically (by calling \code{effects()}) after the test.
+#'   effect sizes automatically (by calling \code{compute_effects()}) after the test.
 #'   Default is \code{FALSE}.
 #' @return The updated model specification object with preferences stored in
 #'   \code{$effects_args}.
-#' @seealso \code{\link{effects}}, \code{\link{set_engine}}, \code{\link{set_engine_options}}, \code{\link{test}}
+#' @seealso \code{\link{compute_effects}}, \code{\link{set_engine}}, \code{\link{set_engine_options}}, \code{\link{test}}
 #' @export
 set_effects <- function(
   x,
@@ -51,7 +51,7 @@ set_effects <- function(
 #'
 #' For non-ANOVA tests (t, Wilcoxon, Friedman), this function computes effect
 #' sizes from the original data and roles (no conversion from test statistics).
-#' Therefore, you must call \code{effects()} on a \emph{spec} for those models.
+#' Therefore, you must call \code{compute_effects()} on a \emph{spec} for those models.
 #'
 #' @param x A spec produced by \code{comp_spec()} (optionally already tested),
 #'   or a fitted result with an attached model (i.e., \code{attr(x, "model")}).
@@ -68,7 +68,7 @@ set_effects <- function(
 #' @return If \code{x} is a spec, the updated spec with \code{$effects};
 #'   otherwise a tibble of effect sizes.
 #' @export
-effects <- function(
+compute_effects <- function(
   x,
   type = c(
     "auto",
@@ -275,7 +275,7 @@ effects <- function(
       ) {
         if (is.null(parent_spec)) {
           stop(
-            "Omega squared for Welch's ANOVA requires the original data; call effects() on a spec.",
+            "Omega squared for Welch's ANOVA requires the original data; call compute_effects() on a spec.",
             call. = FALSE
           )
         }
@@ -442,7 +442,7 @@ effects <- function(
     type %in% c("d", "g") && inherits(model, "htest") && is.null(parent_spec)
   ) {
     stop(
-      "Cohen's d/g require the original data and roles; call effects() on a spec.",
+      "Cohen's d/g require the original data and roles; call compute_effects() on a spec.",
       call. = FALSE
     )
   }
@@ -494,7 +494,7 @@ effects <- function(
     type == "rank_biserial" && inherits(model, "htest") && is.null(parent_spec)
   ) {
     stop(
-      "Rank-biserial requires the original data and roles; call effects() on a spec.",
+      "Rank-biserial requires the original data and roles; call compute_effects() on a spec.",
       call. = FALSE
     )
   }
@@ -543,7 +543,7 @@ effects <- function(
       is.null(parent_spec)
   ) {
     stop(
-      "Kendall's W requires the original data and roles; call effects() on a spec.",
+      "Kendall's W requires the original data and roles; call compute_effects() on a spec.",
       call. = FALSE
     )
   }
@@ -635,7 +635,7 @@ effects <- function(
       is.null(parent_spec)
   ) {
     stop(
-      "Contingency-table effect sizes require the original data and roles; call effects() on a spec.",
+      "Contingency-table effect sizes require the original data and roles; call compute_effects() on a spec.",
       call. = FALSE
     )
   }

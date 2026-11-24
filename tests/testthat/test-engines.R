@@ -411,7 +411,6 @@ test_that("wilcoxon_signed_rank engine matches stats::wilcox.test paired", {
     wide$A,
     paired = TRUE,
     conf.int = TRUE,
-    exact = FALSE,
     correct = TRUE
   )
   expect_s3_class(res, "tbl_df")

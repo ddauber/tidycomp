@@ -155,7 +155,6 @@ test_that("wilcoxon_signed_rank via comp_spec matches stats::wilcox.test paired"
     wide$A,
     paired = TRUE,
     conf.int = TRUE,
-    exact = FALSE,
     correct = TRUE
   )
   fit <- spec$fitted

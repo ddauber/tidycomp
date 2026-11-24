@@ -158,5 +158,6 @@ utils::globalVariables(c(
   "n",
   ".id",
   ".g",
-  ".y"
+  ".y",
+  "comparison"
 ))

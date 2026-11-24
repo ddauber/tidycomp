@@ -14,7 +14,7 @@ experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](h
 A single grammar covers two-sample tests, paired analyses, and
 multi-group designs – all with consistent output and effect sizes.
 
-    comp_spec() → set_*() → diagnose() → prepare() → test() → effects() → report()/tidy()/autoplot()
+    comp_spec() → set_*() → diagnose() → prepare() → test() → compute_effects() → report()/tidy()/autoplot()
 
 ## Why tidycomp?
 
@@ -45,7 +45,7 @@ spec <- comp_spec(mtcars) |>
   diagnose() |>
   prepare(steps = list(step_trim_outliers(mpg, method = "mad"))) |>
   test() |>
-  effects()
+  compute_effects()
 
 report(spec)
 ```
@@ -68,7 +68,7 @@ report(spec)
 | Roles & design | `set_roles()`, `set_design()`, `set_outcome_type()` | Describe analysis |
 | Optional prep | `prepare()` | Apply logged preprocessing steps |
 | Run test | `test()` | Select and execute engine |
-| Effect size & output | `effects()`, `report()`, `tidy()` | Summaries, tables, plots |
+| Effect size & output | `compute_effects()`, `report()`, `tidy()` | Summaries, tables, plots |
 
 ## Contributing
 

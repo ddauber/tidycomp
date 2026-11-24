@@ -74,7 +74,7 @@ test_that("report.comp_result() warns when notes are present", {
     diagnose() |>
     test() |>
     set_effects(conf_level = 0.90) |>
-    effects()
+    compute_effects()
 
   # Ensure the branch is taken: put notes where the method looks for them
   spec$fitted$notes <- list(c("outliers detected", "check assumptions"))

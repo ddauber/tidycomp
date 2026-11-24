@@ -30,7 +30,7 @@ odds ratios for McNemar tests with zero discordant cells. Defaults to
 \code{TRUE}.}
 
 \item{compute}{Logical; if \code{TRUE}, \code{\link{test}()} will compute
-effect sizes automatically (by calling \code{effects()}) after the test.
+effect sizes automatically (by calling \code{compute_effects()}) after the test.
 Default is \code{FALSE}.}
 }
 \value{
@@ -39,8 +39,8 @@ The updated model specification object with preferences stored in
 }
 \description{
 Records preferences for effect size computation to be used later by
-\code{\link{effects}()}.
+\code{\link{compute_effects}()}.
 }
 \seealso{
-\code{\link{effects}}, \code{\link{set_engine}}, \code{\link{set_engine_options}}, \code{\link{test}}
+\code{\link{compute_effects}}, \code{\link{set_engine}}, \code{\link{set_engine_options}}, \code{\link{test}}
 }
